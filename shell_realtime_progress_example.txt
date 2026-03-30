@@ -1,0 +1,37 @@
+# Illustrative snapshots: real-time progress during one fio step (io_sweep.sh)
+#
+# The script updates the SAME screen region about once per second (ANSI escape
+# sequences). Below are three STATIC frames as if captured mid-run. On a real
+# terminal the bar fills left-to-right and the spinner character cycles (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏).
+#
+# Duration per step in this example: 30s  |  STEP 4/8  jobs=4  qd_total=128
+# ─────────────────────────────────────────────────────────────────────────────
+
+--- Frame A (~10s elapsed, ~33%) ---
+
+  ⠹ [████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]  33%  10s / 30s
+
+  jobs=4     iodepth/job=32    total_QD=128     file=testfile_j4_20260330T094512
+  rw=randwrite    bs=4k       direct=1  engine=libaio
+
+  Elapsed: 10s  Remaining: 20s  File size/job: 1g
+  Cache: O_DIRECT=1 + drop_caches before step + unique file
+
+--- Frame B (~15s elapsed, 50%) ---
+
+  ⠼ [████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]  50%  15s / 30s
+
+  jobs=4     iodepth/job=32    total_QD=128     file=testfile_j4_20260330T094512
+  rw=randwrite    bs=4k       direct=1  engine=libaio
+
+  Elapsed: 15s  Remaining: 15s  File size/job: 1g
+  Cache: O_DIRECT=1 + drop_caches before step + unique file
+
+--- Frame C (finished — bar full, then numeric results follow) ---
+
+  ✔ [██████████████████████████████████████████████████████████] 100% — Done
+
+  Throughput                484.47 MB/s   min=347.16   max=503.31
+  IOPS                      124023
+  Avg Latency               1.0316 ms   p50=1.0035   p95=1.2861   p99=1.8596   p999=3.1621
+  ...

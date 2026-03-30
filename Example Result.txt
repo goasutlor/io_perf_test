@@ -1,3 +1,7 @@
+# Sample terminal capture from io_sweep.sh (full run).
+# While each fio step runs, the script shows a LIVE in-terminal progress bar + spinner
+# (updates ~1s; not shown in this static log — see README "Real-time progress" and
+# shell_realtime_progress_example.txt for illustrated frames).
 
 ╔═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 ║                               IO PERFORMANCE SWEEP  v2.0  |  Cache-Safe  |  Rich CSV                                ║

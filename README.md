@@ -124,9 +124,83 @@ jobs,total_qd,bw_mbs,iops,bw_min_mbs,bw_max_mbs,bw_stdev_mbs,lat_avg_ms,lat_p50_
 2,64,419.06,107279,309.28,457.14,15.11,0.5962,0.5693,0.8806,1.1223,2.5723,9.2667,0.195,5.334,590.832,3.79,27.04,99.77,970731,rw=randwrite bs=4k iodepth=32 direct=1 dur=30s,libaio,1g,20260330T093349
 ```
 
-### Terminal output (summary)
+### Real-time progress (live terminal “chart”)
 
-The script prints a banner, confirmation of settings (path, workload, sweep 1→N, iodepth, duration, file size, Direct IO, engine), then each STEP with a progress bar and per-step Throughput / IOPS / Latency. Full sample text is in **`Example Result.txt`**.
+While **fio** runs each step, `io_sweep.sh` redraws a **live dashboard** in the terminal (ANSI cursor moves; same lines update about once per second). It is not a GUI chart, but it behaves like a **real-time progress strip**: Braille **spinner** + **filled bar** (`█` vs `░`) + **percent** + **elapsed / runtime** + job parameters and cache hints.
+
+**Behavior (from `run_one_step`):**
+
+| Element | Role |
+|---------|------|
+| Spinner (`⠋⠙⠹…`) | Shows the step is active |
+| Bar + `%` | Elapsed time vs `--runtime` (duration per step) |
+| `jobs`, `iodepth`, `total_QD`, `file=` | Current concurrency and unique test file name |
+| `Elapsed` / `Remaining` | ETA for this step |
+| Final line | Turns green: `✔ [████…] 100% — Done` |
+
+**Illustrative snapshot** (what you see *during* a 30s step — bar length and `%` increase every second until 100%):
+
+```text
+══════════════════════════════════════════════════════════════════════════════════
+  STEP 4/8  jobs=4    qd_total=128    bs=4k      rw=randwrite
+══════════════════════════════════════════════════════════════════════════════════
+  [INFO]  Page cache dropped (echo 3 > /proc/sys/vm/drop_caches)
+
+  ⠼ [████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]  40%  12s / 30s
+
+  jobs=4     iodepth/job=32    total_QD=128     file=testfile_j4_20260330T094512
+  rw=randwrite    bs=4k       direct=1  engine=libaio
+
+  Elapsed: 12s  Remaining: 18s  File size/job: 1g
+  Cache: O_DIRECT=1 + drop_caches before step + unique file
+```
+
+When the step finishes, that block is replaced by the green 100% line and the numeric summary (Throughput, IOPS, latency percentiles, CPU / util).
+
+A longer capture including configuration, per-step summaries, and the **sweep summary** is in **`Example Result.txt`**. An extra **realtime-only illustration** is in **`shell_realtime_progress_example.txt`**.
+
+### Sweep complete — summary table and sweet spot
+
+After all job counts finish, **`print_summary`** prints **`SWEEP COMPLETE`**, a **per-job table** (IOPS, bandwidth, average latency, P99 latency), and a **Status** column:
+
+| Status | Meaning (heuristic) |
+|--------|----------------------|
+| **★ SWEET** | Row selected as the sweet spot (see below) |
+| **OK** | Latency not yet elevated vs. sweet spot |
+| **HIGH LAT** | Average latency > ~2× sweet-spot average |
+| **SATURATED** | Average latency > ~2.5× sweet-spot average |
+
+**Sweet spot selection** (embedded Python in `print_summary`): among all rows, find the minimum **average latency**; then, among rows whose average latency is **≤ 2× that minimum**, pick the row with the **highest IOPS**. That row is labeled **★ SWEET** and repeated in the banner line.
+
+**Example end-of-run output** (same run as the sample CSV — condensed from `Example Result.txt`):
+
+```text
+══════════════════════════════════════════════════════════════════════════════════
+                                                    SWEEP COMPLETE
+══════════════════════════════════════════════════════════════════════════════════
+
+  Jobs         IOPS       BW(MB/s)   AvgLat     P99Lat     Status
+──────────────────────────────────────────────────────────────────────────────────
+  1 jobs       89285      348.77     0.3581ms   0.7496ms   OK
+  2 jobs       107279     419.06     0.5962ms   1.1223ms   ★ SWEET
+  3 jobs       120336     470.07     0.7973ms   1.5811ms   OK
+  4 jobs       124023     484.47     1.0316ms   1.8596ms   OK
+  5 jobs       123621     482.9      1.2937ms   2.3429ms   HIGH LAT
+  6 jobs       117395     458.58     1.6345ms   2.4084ms   SATURATED
+  7 jobs       120184     469.47     1.8629ms   3.4898ms   SATURATED
+  8 jobs       124854     487.71     2.0497ms   3.0638ms   SATURATED
+
+══════════════════════════════════════════════════════════════════════════════════
+  ★ Sweet spot: 2 jobs  |  IOPS: 107279  |  AvgLat: 0.5962 ms
+══════════════════════════════════════════════════════════════════════════════════
+
+  [INFO]  CSV: .../io_sweep_<timestamp>/sweep_results.csv
+  [INFO]  Open io_compare.html in browser and upload this CSV to generate charts
+```
+
+### Terminal output (full log)
+
+The script prints a banner, confirmation of settings (path, workload, sweep 1→N, iodepth, duration, file size, Direct IO, engine), then each **STEP** with the **live progress dashboard** and per-step Throughput / IOPS / Latency. The full transcript is in **`Example Result.txt`**.
 
 ### Web report (HTML)
 
@@ -145,7 +219,8 @@ Comparison UI after uploading two CSV files:
 | `io_sweep.sh` | Main sweep script and CSV writer |
 | `io_compare.html` | Browser-based two-CSV comparison report |
 | `sweep_results_1.csv`, `sweep_results2.csv` | Sample CSV outputs |
-| `Example Result.txt` | Saved terminal output sample |
+| `Example Result.txt` | Full saved terminal output (config, steps, summary, sweet spot) |
+| `shell_realtime_progress_example.txt` | Static “frames” of the live progress bar / spinner |
 | `Screenshot *.png` | Sample HTML report screenshots |
 
 ---

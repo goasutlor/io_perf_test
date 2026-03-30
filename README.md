@@ -2,9 +2,9 @@
 
 **v4.0.x — Universal IO Testing Tool:** a **jobs 1→N** sweep using [fio](https://github.com/axboe/fio), exporting **CSV** with optional **`profile_name`** / **`profile_group`** columns. Open **`io_compare.html`** locally for **single-system** reports, **A/B compare**, or **universal** multi-profile CSVs (tabs follow workload group). No server required.
 
-**Front-page quick model (2 Layers):**
+**Front-page quick model (2 Layers) — single entrypoint: `universal_io_test.sh`**
 
-1. **Storage Layer first** — choose `Filesystem` / `HDFS` / `Object (S3)`
+1. **Storage Layer first** — choose `Filesystem` / `HDFS` / `Object (S3)` from one script (`universal_io_test.sh`)
 2. **IO Profile Layer second**:
    - **If `Filesystem`**: you can run Standard sweep or any profile group (`Database` / `VM` / `Streaming` / `Backup` / `Container` / `Spark` / `Full Universal`)
    - **If `HDFS` or `S3`**: this flow intentionally offers **Spark-like** profiles only (`spark_read`, `spark_write`, `spark_shuffle`, `spark_head`, `spark_move`, or full suite)
@@ -55,6 +55,18 @@ Then pick **one Spark profile** or **full suite** (all five). CSV uses **`profil
 chmod +x storage_spark_sweep.sh
 ./storage_spark_sweep.sh
 ```
+
+### Simplest deploy path (single file entrypoint)
+
+Use **`universal_io_test.sh`** as the only command operators need:
+
+```bash
+chmod +x universal_io_test.sh
+./universal_io_test.sh
+```
+
+- If you choose **Filesystem**, it launches `io_sweep.sh` (Standard + all profile groups).
+- If you choose **HDFS** or **S3**, it launches Spark-like profile flow (storage-specific behavior) from `storage_spark_sweep.sh`.
 
 ### S3 / HDFS simple sweeps (optional)
 

@@ -485,7 +485,14 @@ run_print_summary() {
 
 main() {
   banner
-  menu_storage
+  if [[ -n "${UNIVERSAL_FORCE_STORAGE:-}" ]]; then
+    case "${UNIVERSAL_FORCE_STORAGE}" in
+      fs|hdfs|s3) STORAGE="${UNIVERSAL_FORCE_STORAGE}" ;;
+      *) menu_storage ;;
+    esac
+  else
+    menu_storage
+  fi
   menu_profiles
   [[ "$STORAGE" != "fs" ]] && menu_jobs
 

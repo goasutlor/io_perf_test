@@ -1,8 +1,10 @@
 # IO Performance Sweep & Comparison Report
 
-Tools for IO performance testing with a **jobs 1→N** sweep using [fio](https://github.com/axboe/fio), exporting **CSV** results for side-by-side comparison in the browser via **`io_compare.html`** (no server required).
+**v4.0 — Universal IO Testing Tool:** a **jobs 1→N** sweep using [fio](https://github.com/axboe/fio), exporting **CSV** with optional **`profile_name`** / **`profile_group`** columns. Open **`io_compare.html`** locally for **single-system** reports, **A/B compare**, or **universal** multi-profile CSVs (tabs follow workload group). No server required.
 
 Repository: [https://github.com/goasutlor/io_perf_test](https://github.com/goasutlor/io_perf_test)
+
+**Release notes:** [RELEASE.md](RELEASE.md) · **Web UI walkthrough:** [docs/IO_COMPARE_WEB.md](docs/IO_COMPARE_WEB.md)
 
 ---
 
@@ -13,13 +15,15 @@ flowchart LR
   A[Install prerequisites] --> B[Run io_sweep.sh]
   B --> C[sweep_results.csv + JSON/LOG per step]
   C --> D[Open io_compare.html]
-  D --> E[Upload two CSV files]
-  E --> F[Charts + tables + comparison summary]
+  D --> E{Mode}
+  E -->|Single| F[One CSV → charts + sweet spot]
+  E -->|Compare| G[Two CSVs → delta + analysis]
+  E -->|Universal CSV| H[Tabs by profile_group]
 ```
 
-1. **Linux (root recommended)** — Run `io_sweep.sh` against the path you want to test.  
-2. **Output** — `sweep_results.csv` is written under `io_sweep_<timestamp>/`.  
-3. **Web report** — Open `io_compare.html` in a browser and upload the System A / System B CSV files to view charts and analysis.
+1. **Linux (root recommended)** — Run `io_sweep.sh` (Standard mode or a profile mode: Database, VM, Spark, Full Universal, …).  
+2. **Output** — CSV under `.../io_sweep_<timestamp>/` (or group-specific prefix) including `profile_name` and `profile_group` for universal runs.  
+3. **Web report** — Open `io_compare.html` in a browser. Use **Single System** to analyze one CSV, or **Compare 2 Systems** for two. Universal CSVs are detected automatically; tabs match **`profile_group`**.
 
 ---
 
@@ -95,12 +99,12 @@ sudo ./io_sweep.sh    # recommended — enables drop_caches between steps
 
 When the run finishes, the script prints the path to `sweep_results.csv` and suggests opening **`io_compare.html`** to upload the file.
 
-### Web report (`io_compare.html`)
+### Web report (`io_compare.html` v4)
 
 - Open the file in a browser (double-click or `file:///.../io_compare.html` — no backend).  
-- Set labels for **System A** / **System B** (e.g. NVMe vs iSCSI).  
-- Drag or select two **`sweep_results.csv`** files.  
-- Run the report — you get IOPS/latency charts, comparison narrative, and numeric tables.
+- **Single System** — upload one CSV; **Generate Report** shows overview, latency, throughput, resources, IO profile, and analysis (no System B required).  
+- **Compare 2 Systems** — optional labels for **System A** / **System B**; upload two CSVs for deltas and verdict text.  
+- **Universal CSV** (multiple `profile_name` / non-standard `profile_group`) — the UI builds a **Summary** tab plus **one tab per group** (Spark, Database, VM, …) with charts per profile. See [docs/IO_COMPARE_WEB.md](docs/IO_COMPARE_WEB.md) for implementation details.
 
 ---
 
@@ -217,7 +221,9 @@ Comparison UI after uploading two CSV files:
 | File | Description |
 |------|-------------|
 | `io_sweep.sh` | Main sweep script and CSV writer |
-| `io_compare.html` | Browser-based two-CSV comparison report |
+| `io_compare.html` | Browser report: single CSV, compare, or universal profile tabs |
+| `RELEASE.md` | Version history (v4.0 universal tool) |
+| `docs/IO_COMPARE_WEB.md` | Maintainer walkthrough of `io_compare.html` |
 | `sweep_results_1.csv`, `sweep_results2.csv` | Sample CSV outputs |
 | `Example Result.txt` | Full saved terminal output (config, steps, summary, sweet spot) |
 | `shell_realtime_progress_example.txt` | Static “frames” of the live progress bar / spinner |

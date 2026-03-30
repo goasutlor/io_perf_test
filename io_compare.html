@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>IO Storage Comparison Report</title>
+<title>IO Compare — Universal IO Report v4.0</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;800&display=swap');
 :root{
@@ -168,6 +168,16 @@ tr:hover td{background:var(--bg3)}
 .errmsg{background:var(--red2);border:1px solid var(--b3);border-radius:8px;
         padding:10px 14px;font-family:var(--mono);font-size:11px;color:var(--b);
         margin-bottom:14px;display:none}
+.modebar{display:flex;align-items:center;gap:8px;margin-bottom:14px;font-family:var(--mono);font-size:11px}
+.modelbl{color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.modebtn{background:transparent;border:1px solid var(--border2);border-radius:6px;
+         padding:5px 14px;font-family:var(--mono);font-size:11px;color:var(--muted);
+         cursor:pointer;transition:all .15s;letter-spacing:.04em}
+.modebtn:hover{color:var(--text);border-color:var(--a)}
+.modebtn.active{background:var(--a2);color:var(--a);border-color:var(--a);font-weight:700}
+.optbadge{font-size:9px;padding:1px 6px;border-radius:4px;margin-left:6px;
+          background:var(--border);color:var(--muted);font-family:var(--mono);vertical-align:middle}
+.upcard.dimmed{opacity:.45;pointer-events:none}
 footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10px;
        letter-spacing:.07em;padding-top:20px;border-top:1px solid var(--border);margin-top:12px}
 </style>
@@ -177,16 +187,21 @@ footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10
 
 <header>
   <div class="htag">Storage Performance Analysis</div>
-  <h1>IO Comparison<br>Report</h1>
-  <div class="hsub">Upload sweep_results.csv from two systems → instant comparison charts, latency distribution &amp; analysis</div>
+  <h1>Universal IO<br>Testing Report</h1>
+  <div class="hsub">v4.0 — Single CSV or A/B compare · auto-detects <code>profile_group</code> / <code>profile_name</code> · charts by workload group (8 modes / 21 profiles from io_sweep.sh)</div>
 </header>
 
 <div class="errmsg" id="errMsg"></div>
 
-<div class="upsec">
+<div class="modebar" id="modeBar">
+  <span class="modelbl">Mode:</span>
+  <button class="modebtn active" id="btnMode1" onclick="setMode(1)">Single System</button>
+  <button class="modebtn" id="btnMode2" onclick="setMode(2)">Compare 2 Systems</button>
+</div>
+<div class="upsec" id="upSec">
   <div class="upcard sa">
     <div class="syslbl"><span class="dot"></span><span id="lblA">System A</span></div>
-    <input type="text" class="sname" id="nameA" placeholder="e.g. NVMe-Node01 / Local SSD">
+    <input type="text" class="sname" id="nameA" placeholder="System name (optional)">
     <div class="dz" id="dropA">
       <input type="file" accept=".csv" id="fileA">
       <div class="dzicon">📂</div>
@@ -194,9 +209,9 @@ footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10
       <div class="dzfn" id="fnA" style="display:none"></div>
     </div>
   </div>
-  <div class="upcard sb">
-    <div class="syslbl"><span class="dot"></span><span id="lblB">System B</span></div>
-    <input type="text" class="sname" id="nameB" placeholder="e.g. iSCSI-SAN / NFS-Filer">
+  <div class="upcard sb" id="cardB">
+    <div class="syslbl"><span class="dot"></span><span id="lblB">System B</span><span class="optbadge">optional in single mode</span></div>
+    <input type="text" class="sname" id="nameB" placeholder="System name (optional)">
     <div class="dz" id="dropB">
       <input type="file" accept=".csv" id="fileB">
       <div class="dzicon">📂</div>
@@ -207,11 +222,12 @@ footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10
 </div>
 
 <div class="runwrap">
-  <button class="btnrun" id="btnRun" disabled><span>⚡ Generate Comparison Report</span></button>
+  <button class="btnrun" id="btnRun" disabled><span id="btnRunLbl">⚡ Generate Report</span></button>
 </div>
 
 <div id="results">
   <div class="tabs" id="tabBar"></div>
+  <div id="reportPanels">
 
   <!-- Tab 0: Overview -->
   <div class="tabpanel" id="tab0">
@@ -284,42 +300,113 @@ footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10
       <table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table>
     </div>
   </div>
+  </div><!-- /#reportPanels -->
 </div>
 
-<footer>io_compare.html &nbsp;·&nbsp; self-contained, no external dependencies &nbsp;·&nbsp; works offline</footer>
+<footer>io_compare.html v4.0 &nbsp;·&nbsp; self-contained · works offline &nbsp;·&nbsp; Release: see RELEASE.md in repository</footer>
 </div>
 
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
 const S={a:null,b:null};
+let REPORT_PANELS_BACKUP=null;
 
-// ── CSV Parser (v2 schema) ────────────────────────────────────────────────────
+// ── CSV: quoted fields + header map (v4: profile_name, profile_group) ────────
+function parseCSVLine(line){
+  const out=[]; let cur='', q=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){ q=!q; continue; }
+    if(!q && c===','){ out.push(cur.trim()); cur=''; continue; }
+    cur+=c;
+  }
+  out.push(cur.trim());
+  return out;
+}
 function parseCSV(txt){
-  const rows=[];
-  const lines=txt.trim().split('\n').map(l=>l.trim()).filter(Boolean);
-  let hdr=null;
-  for(const line of lines){
-    const p=line.split(',').map(s=>s.trim());
-    if(p[0]==='jobs'||isNaN(+p[0])){
-      if(!hdr) hdr=p;
-      continue;
+  const lines=txt.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(!lines.length) return [];
+  const first=parseCSVLine(lines[0]);
+  const looksHeader=first[0]==='jobs' && first[1]==='total_qd';
+  let hdrIdx=null;
+  if(looksHeader){
+    hdrIdx={};
+    first.forEach((h,i)=>{ hdrIdx[h.trim().toLowerCase().replace(/\s+/g,'_')]=i; });
+  }
+  const g=(p,k)=>{
+    if(hdrIdx){
+      const i=hdrIdx[k.toLowerCase()];
+      return i!==undefined ? (p[i]??'') : '';
     }
-    // Support both v1 (7 cols) and v2 (24 cols)
-    const r={
-      jobs:+p[0], total_qd:+p[1],
-      bw_mbs:+p[2], iops:+p[3],
-      bw_min:+(p[4]||0), bw_max:+(p[5]||0), bw_stdev:+(p[6]||0),
-      lat_avg:+p[7], lat_p50:+(p[8]||0), lat_p95:+(p[9]||0),
-      lat_p99:+(p[10]||p[5]||0), lat_p999:+(p[11]||p[6]||0),
-      lat_max:+(p[12]||0), lat_stdev:+(p[13]||0),
-      slat:+(p[14]||0), clat:+(p[15]||0),
-      cpu_usr:+(p[16]||0), cpu_sys:+(p[17]||0),
-      io_util:+(p[18]||0), ctx_sw:+(p[19]||0),
-      profile:p[20]||'', engine:p[21]||'', file_size:p[22]||'', ts:p[23]||''
-    };
+    return '';
+  };
+  const rows=[];
+  const start=looksHeader?1:0;
+  for(let li=start;li<lines.length;li++){
+    const p=parseCSVLine(lines[li]);
+    const j0=hdrIdx ? +g(p,'jobs') : +p[0];
+    if(p[0]===''||isNaN(j0)) continue;
+    let r;
+    if(hdrIdx){
+      r={
+        jobs:+g(p,'jobs'), total_qd:+g(p,'total_qd'),
+        bw_mbs:+g(p,'bw_mbs'), iops:+g(p,'iops'),
+        bw_min:+(g(p,'bw_min_mbs')||0), bw_max:+(g(p,'bw_max_mbs')||0), bw_stdev:+(g(p,'bw_stdev_mbs')||0),
+        lat_avg:+g(p,'lat_avg_ms'), lat_p50:+(g(p,'lat_p50_ms')||0), lat_p95:+(g(p,'lat_p95_ms')||0),
+        lat_p99:+(g(p,'lat_p99_ms')||0), lat_p999:+(g(p,'lat_p999_ms')||0),
+        lat_max:+(g(p,'lat_max_ms')||0), lat_stdev:+(g(p,'lat_stdev_ms')||0),
+        slat:+(g(p,'slat_avg_us')||0), clat:+(g(p,'clat_avg_us')||0),
+        cpu_usr:+(g(p,'cpu_usr_pct')||0), cpu_sys:+(g(p,'cpu_sys_pct')||0),
+        io_util:+(g(p,'io_util_pct')||0), ctx_sw:+(g(p,'ctx_switches')||0),
+        profile:g(p,'profile')||'', engine:g(p,'engine')||'', file_size:g(p,'file_size')||'',
+        ts:g(p,'timestamp')||'',
+        profile_name:(g(p,'profile_name')||'').trim(),
+        profile_group:(g(p,'profile_group')||'').trim()||'standard'
+      };
+    }else{
+      r={
+        jobs:+p[0], total_qd:+p[1],
+        bw_mbs:+p[2], iops:+p[3],
+        bw_min:+(p[4]||0), bw_max:+(p[5]||0), bw_stdev:+(p[6]||0),
+        lat_avg:+p[7], lat_p50:+(p[8]||0), lat_p95:+(p[9]||0),
+        lat_p99:+(p[10]||0), lat_p999:+(p[11]||0),
+        lat_max:+(p[12]||0), lat_stdev:+(p[13]||0),
+        slat:+(p[14]||0), clat:+(p[15]||0),
+        cpu_usr:+(p[16]||0), cpu_sys:+(p[17]||0),
+        io_util:+(p[18]||0), ctx_sw:+(p[19]||0),
+        profile:p[20]||'', engine:p[21]||'', file_size:p[22]||'', ts:p[23]||'',
+        profile_name:(p[24]||'').trim(),
+        profile_group:(p[25]||'').trim()||'standard'
+      };
+    }
+    r.spark_op=r.profile_name;
     if(!isNaN(r.jobs)) rows.push(r);
   }
   return rows.sort((a,b)=>a.jobs-b.jobs);
+}
+function isUniversalProfileCsv(rows){
+  if(!rows?.length) return false;
+  const names=[...new Set(rows.map(r=>r.profile_name).filter(Boolean))];
+  const groups=[...new Set(rows.map(r=>r.profile_group).filter(Boolean))];
+  if(names.length>1) return true;
+  if(groups.length>1) return true;
+  if(groups.length===1 && groups[0] && groups[0].toLowerCase()!=='standard') return true;
+  if(names.length===1 && names[0] && names[0].toLowerCase()!=='sweep') return true;
+  return false;
+}
+function sortGroups(gs){
+  const order=['standard','spark','database','vm','streaming','backup','container','universal','other'];
+  return [...gs].sort((a,b)=>{
+    const ia=order.indexOf((a||'').toLowerCase()), ib=order.indexOf((b||'').toLowerCase());
+    const sa=ia<0?999:ia, sb=ib<0?999:ib;
+    if(sa!==sb) return sa-sb;
+    return String(a).localeCompare(String(b));
+  });
+}
+function groupLabel(g){
+  const map={standard:'Standard Sweep',spark:'Spark',database:'Database',vm:'VM / Virtualization',
+    streaming:'Streaming / Media',backup:'Backup / Archive',container:'Container / K8s',universal:'Full Universal'};
+  return map[(g||'').toLowerCase()]||g||'Group';
 }
 
 // ── File setup ────────────────────────────────────────────────────────────────
@@ -345,6 +432,14 @@ function setupDrop(dId,fId,fnId,key){
 }
 setupDrop('dropA','fileA','fnA','a');
 setupDrop('dropB','fileB','fnB','b');
+document.addEventListener('DOMContentLoaded',()=>{
+  const rp=document.getElementById('reportPanels');
+  if(rp) REPORT_PANELS_BACKUP=rp.innerHTML;
+});
+function restoreDefaultPanels(){
+  const rp=document.getElementById('reportPanels');
+  if(rp&&REPORT_PANELS_BACKUP) rp.innerHTML=REPORT_PANELS_BACKUP;
+}
 
 // Live name update — updates upload card label + dynamic chart titles as user types
 function updateNames(){
@@ -359,7 +454,23 @@ function updateNames(){
 }
 document.getElementById('nameA').addEventListener('input',updateNames);
 document.getElementById('nameB').addEventListener('input',updateNames);
-function checkReady(){document.getElementById('btnRun').disabled=!(S.a?.length&&S.b?.length)}
+let MODE=1; // 1=single, 2=compare
+
+function setMode(m){
+  MODE=m;
+  document.getElementById('btnMode1').classList.toggle('active',m===1);
+  document.getElementById('btnMode2').classList.toggle('active',m===2);
+  const cardB=document.getElementById('cardB');
+  cardB.classList.toggle('dimmed',m===1);
+  const lbl=document.getElementById('btnRunLbl');
+  if(lbl) lbl.textContent=m===1?'⚡ Generate Report':'⚡ Generate Comparison Report';
+  checkReady();
+}
+
+function checkReady(){
+  const ok = S.a?.length && (MODE===1 || S.b?.length);
+  document.getElementById('btnRun').disabled=!ok;
+}
 
 // ── Tab system ────────────────────────────────────────────────────────────────
 const TABS=['Overview','Latency Dist.','Throughput','Resources','IO Profile','Analysis','Full Table'];
@@ -368,8 +479,8 @@ function initTabs(){
   bar.innerHTML=TABS.map((t,i)=>`<button class="tab${i===0?' active':''}" onclick="switchTab(${i})">${t}</button>`).join('');
 }
 function switchTab(i){
-  document.querySelectorAll('.tab').forEach((t,j)=>t.classList.toggle('active',i===j));
-  document.querySelectorAll('.tabpanel').forEach((p,j)=>p.classList.toggle('active',i===j));
+  document.querySelectorAll('#tabBar .tab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  document.querySelectorAll('#reportPanels .tabpanel').forEach((p,j)=>p.classList.toggle('active',i===j));
 }
 
 // ── Canvas chart engine ───────────────────────────────────────────────────────
@@ -489,8 +600,16 @@ document.getElementById('btnRun').addEventListener('click',render);
 function render(){
   const err=document.getElementById('errMsg');
   err.style.display='none';
-  const da=S.a,db=S.b;
-  if(!da?.length||!db?.length){err.textContent='No valid data loaded.';err.style.display='block';return;}
+  restoreDefaultPanels();
+  const da=S.a, db=MODE===2?S.b:null;
+  if(!da?.length){err.textContent='No valid data loaded.';err.style.display='block';return;}
+  if(MODE===2&&!db?.length){err.textContent='System B data missing. Switch to Single mode or upload both files.';err.style.display='block';return;}
+
+  if(MODE===1){
+    if(isUniversalProfileCsv(da)){ renderProfileSingle(da); return; }
+    renderSingle(da); return;
+  }
+  if(isUniversalProfileCsv(da)&&isUniversalProfileCsv(db)){ renderProfileCompare(da,db); return; }
 
   const nA=document.getElementById('nameA').value.trim()||'System A';
   const nB=document.getElementById('nameB').value.trim()||'System B';
@@ -723,9 +842,375 @@ function render(){
   });
 }
 
+// ── IO Profile metadata (all groups) ────────────────────────────────────────
+const PROFILE_META={
+  // Spark
+  spark_read:    {color:'#185FA5',label:'Spark Read',    group:'Spark',     desc:'Parquet/ORC sequential scan'},
+  spark_write:   {color:'#3B6D11',label:'Spark Write',   group:'Spark',     desc:'Task partition output write'},
+  spark_shuffle: {color:'#854F0B',label:'Spark Shuffle', group:'Spark',     desc:'Sort/Join/GroupBy 50R/50W'},
+  spark_head:    {color:'#534AB7',label:'Spark HEAD',    group:'Spark',     desc:'Metadata / schema lookup'},
+  spark_move:    {color:'#0F6E56',label:'Spark MOVE',    group:'Spark',     desc:'Task commit rename 70R/30W'},
+  // Database
+  db_oltp:       {color:'#1D9E75',label:'OLTP',          group:'Database',  desc:'MySQL/PostgreSQL 70R/30W 8k'},
+  db_olap:       {color:'#0F6E56',label:'OLAP Scan',     group:'Database',  desc:'Analytics full scan 512k seq'},
+  db_wal:        {color:'#085041',label:'WAL/Redo',       group:'Database',  desc:'Write-ahead log qd=1 4k'},
+  db_index:      {color:'#1D9E75',label:'Index Lookup',  group:'Database',  desc:'B-tree random read 4k high QD'},
+  // VM
+  vm_guest:      {color:'#BA7517',label:'VM Guest',      group:'VM',        desc:'General guest OS IO 16k'},
+  vm_clone:      {color:'#854F0B',label:'VM Clone',      group:'VM',        desc:'Live migration read 256k'},
+  vm_vdi:        {color:'#633806',label:'VDI Boot',      group:'VM',        desc:'Boot storm randread 8k qd=128'},
+  // Streaming
+  stream_ingest: {color:'#0C447C',label:'Video Ingest',  group:'Streaming', desc:'Camera write 1m sequential'},
+  stream_play:   {color:'#185FA5',label:'Video Play',    group:'Streaming', desc:'Multi-stream read 512k'},
+  stream_log:    {color:'#378ADD',label:'Log Stream',    group:'Streaming', desc:'Kafka/Fluentd append 64k'},
+  // Backup
+  bkp_read:      {color:'#993C1D',label:'Backup Read',   group:'Backup',    desc:'Full backup source 512k'},
+  bkp_write:     {color:'#712B13',label:'Restore Write', group:'Backup',    desc:'Restore target 512k'},
+  bkp_dedup:     {color:'#D85A30',label:'Dedup IO',      group:'Backup',    desc:'Read-compare-write 8k'},
+  // Container/K8s
+  k8s_pull:      {color:'#3C3489',label:'Image Pull',    group:'Container', desc:'Layer extract read 128k'},
+  k8s_pvc:       {color:'#534AB7',label:'PVC Mixed',     group:'Container', desc:'StatefulSet 50R/50W 64k'},
+  k8s_etcd:      {color:'#7F77DD',label:'etcd WAL',      group:'Container', desc:'fsync write qd=1 4k'},
+  // Group-level fallbacks (profile_group from CSV → tab title / color)
+  spark:         {color:'#185FA5',label:'Spark',         group:'Spark',     desc:'Spark IO profiles'},
+  database:      {color:'#1D9E75',label:'Database',      group:'Database',  desc:'Database IO profiles'},
+  vm:            {color:'#BA7517',label:'VM',            group:'VM',        desc:'Virtualization workloads'},
+  streaming:     {color:'#185FA5',label:'Streaming',       group:'Streaming', desc:'Media / log streaming'},
+  backup:        {color:'#993C1D',label:'Backup',          group:'Backup',    desc:'Backup / archive'},
+  container:     {color:'#3C3489',label:'Container',       group:'Container', desc:'Kubernetes / containers'},
+  universal:     {color:'#534AB7',label:'Full Universal',  group:'Universal', desc:'All profile groups'},
+  // Fallbacks
+  standard:      {color:'#0057ff',label:'Standard',      group:'Standard',  desc:'Standard sweep'},
+};
+function getMeta(name,grp){
+  return PROFILE_META[name]||PROFILE_META[grp]||{color:'#888780',label:name||grp||'Unknown',group:'Other',desc:''};
+}
+// Legacy compat
+const SPARK_META=PROFILE_META;
+function safeId(s){ return String(s||'x').replace(/[^a-z0-9]/gi,'_'); }
+
+function profileSectionChartsSingle(rows,meta,sfx){
+  const lbl=rows.map(r=>r.jobs+' job'+(r.jobs>1?'s':''));
+  const iopsD=rows.map(r=>r.iops), bwD=rows.map(r=>r.bw_mbs);
+  const latD=rows.map(r=>r.lat_avg), p99D=rows.map(r=>r.lat_p99);
+  const p95D=rows.map(r=>r.lat_p95||0), p999D=rows.map(r=>r.lat_p999||0);
+  const fill=meta.color+'18';
+  setTimeout(()=>{
+    drawChart('sp_iops_'+sfx,[{data:iopsD,color:meta.color,fill:fill}],{labels:lbl});
+    drawChart('sp_bw_'+sfx, [{data:bwD,  color:meta.color,fill:fill}],{labels:lbl});
+    drawChart('sp_lat_'+sfx,[
+      {data:latD, color:'#3B8BD4',lw:2},
+      {data:p95D, color:'#EF9F27',lw:1.5,dash:[5,3]},
+      {data:p99D, color:'#E24B4A',lw:1.5,dash:[3,3]},
+      {data:p999D,color:'#A32D2D',lw:1,dash:[2,4]},
+    ],{labels:lbl,yUnit:'ms'});
+    drawChart('sp_cmp_'+sfx,[
+      {data:latD,color:meta.color,fill:fill},
+      {data:p99D,color:meta.color,lw:1.5,dash:[5,3]},
+    ],{labels:lbl,yUnit:'ms'});
+  },80);
+}
+
+// ── Profile render: tabs = Summary + one tab per profile_group (v4) ───────────
+function renderProfileSingle(da){
+  const nA=document.getElementById('nameA').value.trim()||'System';
+  const groups=sortGroups([...new Set(da.map(r=>r.profile_group||'standard'))]);
+  const tabNames=['Summary',...groups.map(groupLabel)];
+  document.getElementById('tabBar').innerHTML=tabNames.map((t,i)=>`<button class="tab${i===0?' active':''}" onclick="switchTab(${i})">${t}</button>`).join('');
+
+  const profileNames=[...new Set(da.map(r=>r.profile_name).filter(Boolean))].sort();
+  const sumCards=profileNames.map(pn=>{
+    const rows=da.filter(r=>r.profile_name===pn).sort((a,b)=>a.jobs-b.jobs);
+    if(!rows.length) return '';
+    const meta=getMeta(pn, rows[0].profile_group);
+    const pkIops=Math.max(...rows.map(r=>r.iops)), pkBw=Math.max(...rows.map(r=>r.bw_mbs));
+    const minLat=Math.min(...rows.map(r=>r.lat_avg));
+    const sweet=findSweet(rows);
+    return `<div class="sumcard" style="border-top:3px solid ${meta.color}">
+      <div class="sumlbl" style="color:${meta.color}">${meta.label} <span style="font-size:9px;background:var(--border);color:var(--muted);padding:1px 5px;border-radius:3px;margin-left:4px">${meta.group} · ${rows[0].profile_group||''}</span></div>
+      <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">${meta.desc}</div>
+      <div class="sumvals">
+        <div class="sumrow"><span class="sumsys">Peak IOPS</span><span class="sumval" style="color:${meta.color}">${fmtN(pkIops)}</span></div>
+        <div class="sumrow"><span class="sumsys">Peak BW</span><span class="sumval" style="color:${meta.color}">${fmtN(pkBw,'MB/s')}</span></div>
+        <div class="sumrow"><span class="sumsys">Min Avg Lat</span><span class="sumval" style="color:${meta.color}">${minLat.toFixed(3)}ms</span></div>
+        <div class="sumrow"><span class="sumsys">Sweet spot</span><span class="sumval" style="color:${meta.color}">${sweet.jobs} jobs · ${fmtN(sweet.iops)} IOPS</span></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const groupBlurb=groups.map(g=>{
+    const pn=[...new Set(da.filter(r=>r.profile_group===g).map(r=>r.profile_name))].filter(Boolean).join(', ');
+    return `<strong>${groupLabel(g)}</strong> <span style="color:var(--muted)">(${g})</span>: ${pn||'—'}`;
+  }).join('<br>');
+
+  let panels=`<div class="tabpanel active">
+    <div class="sumgrid" id="pfSumGrid"></div>
+    <div class="verdict" style="margin-top:16px"><h3>Detected workload groups</h3><div class="vtext">${groupBlurb}</div>
+    <p style="margin-top:12px;font-size:12px;color:var(--muted)">Tabs above follow <code>profile_group</code> from your CSV (io_sweep.sh v4). Each profile is keyed by <code>profile_name</code>.</p></div>
+  </div>`;
+
+  const deferredDraws=[];
+  groups.forEach(g=>{
+    const plist=[...new Set(da.filter(r=>r.profile_group===g).map(r=>r.profile_name))].filter(Boolean).sort();
+    let inner='';
+    plist.forEach(pn=>{
+      const rows=da.filter(r=>r.profile_name===pn).sort((a,b)=>a.jobs-b.jobs);
+      if(!rows.length) return;
+      const meta=getMeta(pn,g);
+      const sfx=safeId(g+'_'+pn);
+      inner+=`<section style="margin-bottom:32px;border-left:3px solid ${meta.color};padding-left:14px">
+        <h3 style="color:${meta.color};font-size:15px;margin-bottom:4px">${meta.label}</h3>
+        <p style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:12px">${meta.desc}</p>
+        <p style="font-size:10px;color:var(--muted2);margin-bottom:10px">${rows[0].profile||''}</p>
+        <div class="cgrid2">
+          <div class="ccard"><div class="chdr"><div class="ctitle">IOPS vs Jobs</div></div><canvas id="sp_iops_${sfx}" height="200"></canvas></div>
+          <div class="ccard"><div class="chdr"><div class="ctitle">Throughput MB/s</div></div><canvas id="sp_bw_${sfx}" height="200"></canvas></div>
+        </div>
+        <div class="cgrid2">
+          <div class="ccard"><div class="chdr"><div class="ctitle">Latency percentiles</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:#3B8BD4"></div>Avg</div><div class="legitem"><div class="legdot" style="background:#EF9F27"></div>P95</div><div class="legitem"><div class="legdot" style="background:#E24B4A"></div>P99</div><div class="legitem"><div class="legdot" style="background:#A32D2D"></div>P99.9</div></div></div><canvas id="sp_lat_${sfx}" height="200"></canvas></div>
+          <div class="ccard"><div class="chdr"><div class="ctitle">Avg vs P99</div></div><canvas id="sp_cmp_${sfx}" height="200"></canvas></div>
+        </div>
+      </section>`;
+      deferredDraws.push(()=>profileSectionChartsSingle(rows,meta,sfx));
+    });
+    panels+=`<div class="tabpanel">${inner}</div>`;
+  });
+
+  document.getElementById('reportPanels').innerHTML=panels;
+  document.getElementById('pfSumGrid').innerHTML=sumCards;
+  deferredDraws.forEach(fn=>fn());
+  document.getElementById('results').style.display='block';
+  setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);
+  switchTab(0);
+}
+
+function renderProfileCompare(da,db){
+  const nA=document.getElementById('nameA').value.trim()||'System A';
+  const nB=document.getElementById('nameB').value.trim()||'System B';
+  const groups=sortGroups([...new Set([...da.map(r=>r.profile_group),...db.map(r=>r.profile_group)])].filter(Boolean));
+  const tabNames=['Summary',...groups.map(groupLabel)];
+  document.getElementById('tabBar').innerHTML=tabNames.map((t,i)=>`<button class="tab${i===0?' active':''}" onclick="switchTab(${i})">${t}</button>`).join('');
+
+  const commonProfiles=[...new Set(da.map(r=>r.profile_name))].filter(pn=>pn&&db.some(r=>r.profile_name===pn));
+
+  let sumCards='';
+  commonProfiles.forEach(pn=>{
+    const ra=da.filter(r=>r.profile_name===pn), rb=db.filter(r=>r.profile_name===pn);
+    if(!ra.length||!rb.length) return;
+    const meta=getMeta(pn, ra[0].profile_group);
+    const pkIA=Math.max(...ra.map(r=>r.iops)), pkIB=Math.max(...rb.map(r=>r.iops));
+    const mlA=Math.min(...ra.map(r=>r.lat_avg)), mlB=Math.min(...rb.map(r=>r.lat_avg));
+    const iWin=pkIA>pkIB?nA:pkIB>pkIA?nB:'Tie';
+    const lWin=mlA<mlB?nA:mlB<mlA?nB:'Tie';
+    const winCol=iWin===nA?'var(--a)':iWin===nB?'var(--b)':'var(--muted)';
+    sumCards+=`<div class="sumcard" style="border-top:3px solid ${meta.color}">
+      <div class="sumlbl" style="color:${meta.color}">${meta.label} <span style="font-size:9px;background:var(--border);color:var(--muted);padding:1px 5px;border-radius:3px;margin-left:4px">${meta.group}</span></div>
+      <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">${meta.desc}</div>
+      <div class="sumvals">
+        <div class="sumrow"><span class="sumsys">${nA} IOPS</span><span class="sumval ca">${fmtN(pkIA)}</span></div>
+        <div class="sumrow"><span class="sumsys">${nB} IOPS</span><span class="sumval cb">${fmtN(pkIB)}</span></div>
+      </div>
+      <span class="sumwin" style="background:${winCol}18;color:${winCol}">IOPS: ${iWin}</span>
+      <span class="sumwin" style="background:var(--border);color:var(--muted);margin-left:4px">Lat: ${lWin}</span>
+    </div>`;
+  });
+
+  let panels=`<div class="tabpanel active"><div class="sumgrid" id="pfSumGrid2"></div>
+    <p style="margin-top:12px;font-size:11px;color:var(--muted);font-family:var(--mono)">Compared profiles present in <strong>both</strong> files: ${commonProfiles.length?commonProfiles.join(', '):'—'}</p></div>`;
+
+  const deferredCmp=[];
+  groups.forEach(g=>{
+    const plist=[...new Set(da.filter(r=>r.profile_group===g).map(r=>r.profile_name))].filter(pn=>commonProfiles.includes(pn)).sort();
+    let inner='';
+    plist.forEach(pn=>{
+      const ra=da.filter(r=>r.profile_name===pn).sort((a,b)=>a.jobs-b.jobs);
+      const rb=db.filter(r=>r.profile_name===pn).sort((a,b)=>a.jobs-b.jobs);
+      if(!ra.length||!rb.length) return;
+      const meta=getMeta(pn,g);
+      const sfx=safeId('cmp_'+g+'_'+pn);
+      const jobs=[...new Set([...ra.map(r=>r.jobs),...rb.map(r=>r.jobs)])].sort((a,b)=>a-b);
+      const lbl=jobs.map(j=>j+' job'+(j>1?'s':''));
+      const gA=(fn)=>jobs.map(j=>{const r=ra.find(x=>x.jobs===j);return r?fn(r):0;});
+      const gB=(fn)=>jobs.map(j=>{const r=rb.find(x=>x.jobs===j);return r?fn(r):0;});
+      const fa='rgba(0,87,255,0.08)',fb='rgba(224,40,79,0.08)';
+      inner+=`<section style="margin-bottom:28px;border-left:3px solid ${meta.color};padding-left:14px">
+        <h3 style="color:${meta.color};font-size:15px">${meta.label}</h3>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:12px">${meta.desc}</p>
+        <div class="cgrid2">
+          <div class="ccard"><div class="chdr"><div class="ctitle">IOPS vs Jobs</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div>${nA}</div><div class="legitem"><div class="legdot" style="background:var(--b)"></div>${nB}</div></div></div><canvas id="sc_iops_${sfx}" height="200"></canvas></div>
+          <div class="ccard"><div class="chdr"><div class="ctitle">Avg latency</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div>${nA}</div><div class="legitem"><div class="legdot" style="background:var(--b)"></div>${nB}</div></div></div><canvas id="sc_lat_${sfx}" height="200"></canvas></div>
+        </div>
+        <div class="cgrid2">
+          <div class="ccard"><div class="chdr"><div class="ctitle">P99</div></div><canvas id="sc_p99_${sfx}" height="200"></canvas></div>
+          <div class="ccard"><div class="chdr"><div class="ctitle">Throughput MB/s</div></div><canvas id="sc_bw_${sfx}" height="200"></canvas></div>
+        </div>
+      </section>`;
+      deferredCmp.push(()=>{
+        drawChart('sc_iops_'+sfx,[{data:gA(r=>r.iops),color:'#0057ff',fill:fa},{data:gB(r=>r.iops),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl});
+        drawChart('sc_lat_'+sfx,[{data:gA(r=>r.lat_avg),color:'#0057ff',fill:fa},{data:gB(r=>r.lat_avg),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl,yUnit:'ms'});
+        drawChart('sc_p99_'+sfx,[{data:gA(r=>r.lat_p99),color:'#0057ff',fill:fa},{data:gB(r=>r.lat_p99),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl,yUnit:'ms'});
+        drawChart('sc_bw_'+sfx,[{data:gA(r=>r.bw_mbs),color:'#0057ff',fill:fa},{data:gB(r=>r.bw_mbs),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl});
+      });
+    });
+    panels+=`<div class="tabpanel">${inner||'<p style="color:var(--muted)">No matching profiles in this group.</p>'}</div>`;
+  });
+
+  document.getElementById('reportPanels').innerHTML=panels;
+  const sg=document.getElementById('pfSumGrid2');
+  if(sg) sg.innerHTML=sumCards;
+  deferredCmp.forEach(fn=>fn());
+  document.getElementById('results').style.display='block';
+  setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);
+  switchTab(0);
+}
+
+// ── Single system render ─────────────────────────────────────────────────────
+function renderSingle(da){
+  const nA=document.getElementById('nameA').value.trim()||'System A';
+  // Only show relevant tabs for single mode
+  const STABS=['Overview','Latency Dist.','Throughput','Resources','IO Profile'];
+  const bar=document.getElementById('tabBar');
+  bar.innerHTML=STABS.map((t,i)=>`<button class="tab${i===0?' active':''}" onclick="switchTab(${i})">${t}</button>`).join('');
+  // Hide compare-only tabs
+  for(let i=5;i<=6;i++){const p=document.getElementById('tab'+i);if(p)p.style.display='none';}
+
+  document.getElementById('results').style.display='block';
+  setTimeout(()=>switchTab(0),10);
+  setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);
+
+  const jobs=da.map(r=>r.jobs);
+  const lbl=jobs.map(j=>j+' job'+(j>1?'s':''));
+  const co={labels:lbl};
+  const C1='#0057ff', F1='rgba(0,87,255,0.08)';
+
+  // Summary cards — single system
+  const sweet=findSweet(da);
+  const pkIops=Math.max(...da.map(r=>r.iops));
+  const pkBw=Math.max(...da.map(r=>r.bw_mbs));
+  const minLat=Math.min(...da.map(r=>r.lat_avg));
+  const minP99=Math.min(...da.map(r=>r.lat_p99));
+  const scards=[
+    {lbl:'Peak IOPS',   val:fmtN(pkIops)},
+    {lbl:'Peak BW',     val:fmtN(pkBw,'MB/s')},
+    {lbl:'Min Avg Lat', val:minLat.toFixed(3)+'ms'},
+    {lbl:'Min P99 Lat', val:minP99.toFixed(3)+'ms'},
+    {lbl:'Sweet Spot',  val:sweet.jobs+' jobs'},
+    {lbl:'IOPS@Sweet',  val:fmtN(sweet.iops)},
+    {lbl:'Lat@Sweet',   val:sweet.lat_avg.toFixed(3)+'ms'},
+  ];
+  document.getElementById('sumGrid').innerHTML=scards.map(c=>`
+    <div class="sumcard">
+      <div class="sumlbl">${c.lbl}</div>
+      <div class="sumvals"><div class="sumrow"><span class="sumsys">${nA}</span><span class="sumval ca">${c.val}</span></div></div>
+    </div>`).join('');
+
+  // Charts — single line each
+  const iops=da.map(r=>r.iops), bw=da.map(r=>r.bw_mbs);
+  const lat=da.map(r=>r.lat_avg), p99=da.map(r=>r.lat_p99);
+  const p95=da.map(r=>r.lat_p95||0), p999=da.map(r=>r.lat_p999||0);
+  const latmax=da.map(r=>r.lat_max||0);
+  const bwstd=da.map(r=>r.bw_stdev||0);
+  const bwmin=da.map(r=>r.bw_min||0), bwmax=da.map(r=>r.bw_max||0);
+  const cu=da.map(r=>r.cpu_usr||0), cs=da.map(r=>r.cpu_sys||0);
+  const util=da.map(r=>r.io_util||0), ctx=da.map(r=>r.ctx_sw||0);
+  const eff=jobs.map((j,i)=>iops[i]?+(iops[i]/j).toFixed(0):0);
+  const score=jobs.map((_,i)=>lat[i]&&p99[i]?+(iops[i]/(lat[i]*p99[i])*1000).toFixed(1):0);
+  const qd=da.map(r=>({x:r.total_qd,y:r.iops}));
+
+  // Update legend spans
+  ['0','1','2','3'].forEach(id=>{
+    const a=document.getElementById('la'+id);if(a)a.textContent=nA;
+    const b=document.getElementById('lb'+id);if(b)b.textContent='';
+  });
+  ['_tail','_max','_bwstd','_eff','_qd','_score','_cu','_cs','_util','_ctx'].forEach(id=>{
+    const a=document.getElementById('la'+id);if(a)a.textContent=nA;
+    const b=document.getElementById('lb'+id);if(b)b.textContent='';
+  });
+  document.querySelectorAll('.dyn-a').forEach(el=>el.textContent=nA);
+
+  setTimeout(()=>{
+    drawChart('c_iops',[{data:iops,color:C1,fill:F1}],co);
+    drawChart('c_bw',  [{data:bw,  color:C1,fill:F1}],co);
+    drawChart('c_lat', [{data:lat, color:C1,fill:F1}],{...co,yUnit:'ms'});
+    drawChart('c_p99', [{data:p99, color:C1,fill:F1}],{...co,yUnit:'ms'});
+    // Latency dist
+    drawChart('c_latA',[
+      {data:lat, color:'#3B8BD4',lw:2},
+      {data:p95, color:'#EF9F27',lw:1.5,dash:[5,3]},
+      {data:p99, color:'#E24B4A',lw:1.5,dash:[3,3]},
+      {data:p999,color:'#A32D2D',lw:1,dash:[2,4]}
+    ],{...co,yUnit:'ms'});
+    drawChart('c_latB',[{data:latmax,color:'#A32D2D'}],{...co,yUnit:'ms'});
+    drawChart('c_tail',  [{data:p999,  color:C1,fill:F1}],{...co,yUnit:'ms'});
+    drawChart('c_latmax',[{data:latmax,color:'#E24B4A'}],{...co,yUnit:'ms'});
+    // Throughput
+    drawChart('c_bwrange',[{data:bwmin,color:C1,fill:F1,lw:1,dash:[3,3]},{data:bwmax,color:C1,lw:2}],co);
+    drawChart('c_bwstd', [{data:bwstd, color:C1}],co);
+    drawChart('c_eff',   [{data:eff,   color:C1,fill:F1}],co);
+    drawChart('c_qd',    [{data:qd,    color:C1,pr:5,pf:C1}],{scatter:true});
+    drawChart('c_score', [{data:score, color:C1,fill:F1}],co);
+    // Resources
+    drawChart('c_cu',  [{data:cu,  color:C1}],{...co,yUnit:'%'});
+    drawChart('c_cs',  [{data:cs,  color:C1}],{...co,yUnit:'%'});
+    drawChart('c_util',[{data:util,color:C1}],{...co,yUnit:'%'});
+    drawChart('c_ctx', [{data:ctx, color:C1}],co);
+  },100);
+
+  // IO Profile tab
+  const profA=da[0]||{};
+  const parseProfile=p=>{const m={};(p||'').split(' ').forEach(kv=>{const[k,v]=kv.split('=');if(k&&v)m[k]=v;});return m;};
+  const pA=parseProfile(profA.profile);
+  const profFields=[
+    ['Workload (rw)',pA.rw||'—'],['Block Size',pA.bs||'—'],
+    ['iodepth/job',pA.iodepth||'—'],['Direct IO',pA.direct||'—'],
+    ['Duration',pA.dur||'—'],['File size/job',profA.file_size||'—'],
+    ['IO Engine',profA.engine||'—'],['Jobs swept',da.length],
+    ['Max jobs',Math.max(...da.map(r=>r.jobs))],
+  ];
+  document.getElementById('profCards').innerHTML=`
+    <div class="profcard" style="grid-column:1/-1">
+      <div class="cardtitle" style="color:var(--a)">${nA} — IO Profile</div>
+      ${profFields.map(f=>`<div class="profrow"><span class="prlbl">${f[0]}</span><span class="prval ca">${f[1]}</span></div>`).join('')}
+    </div>`;
+  document.getElementById('profCmp').innerHTML=`<div style="color:var(--green);font-family:var(--mono);font-size:12px;padding:12px">Single system mode — no comparison needed.</div>`;
+
+  // Analysis tab — single
+  const anlGrid=document.getElementById('anlGrid');
+  const minP999=Math.min(...da.map(r=>r.lat_p999||9999));
+  const maxLatSeen=Math.max(...da.map(r=>r.lat_max||0));
+  const bestScore=Math.max(...score);
+  const metrics=[
+    {lbl:'Peak IOPS',        val:fmtN(pkIops)},
+    {lbl:'Peak BW',          val:fmtN(pkBw,'MB/s')},
+    {lbl:'Min Avg Latency',  val:minLat.toFixed(3)+'ms'},
+    {lbl:'Min P99 Latency',  val:minP99.toFixed(3)+'ms'},
+    {lbl:'Min P99.9 Latency',val:minP999.toFixed(3)+'ms'},
+    {lbl:'Sweet Spot',       val:sweet.jobs+' jobs'},
+    {lbl:'IOPS @ Sweet',     val:fmtN(sweet.iops)},
+    {lbl:'Lat @ Sweet',      val:sweet.lat_avg.toFixed(3)+'ms'},
+    {lbl:'Max Latency seen', val:maxLatSeen.toFixed(2)+'ms'},
+    {lbl:'Best IO Score',    val:fmtN(bestScore)},
+  ];
+  // Saturation check
+  const lastRow=da[da.length-1], secondLast=da[da.length-2]||da[0];
+  const isSaturated=lastRow.lat_avg>secondLast.lat_avg*1.5&&lastRow.iops<secondLast.iops*1.1;
+  const verdict=`Storage sweet spot is at <strong>${sweet.jobs} job${sweet.jobs>1?'s':''}</strong> with <strong>${fmtN(sweet.iops)} IOPS</strong> and avg latency <strong>${sweet.lat_avg.toFixed(3)} ms</strong>. `+
+    (isSaturated?`Beyond ${secondLast.jobs} jobs the storage shows signs of <em>saturation</em> — IOPS plateau while latency rises sharply. Avoid exceeding ${sweet.jobs} parallel jobs in production. `:`Storage scales well across all tested job counts. `)+
+    (maxLatSeen>sweet.lat_avg*10?`Note: max latency spike of <em>${maxLatSeen.toFixed(1)} ms</em> observed — investigate background IO contention or GC pauses. `:'');
+
+  anlGrid.innerHTML=`
+    <div class="anlsec sa-side" style="grid-column:1/-1">
+      <h3>${nA} — Performance Summary</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+        ${metrics.map(m=>`<div class="anlrow"><span class="arlbl">${m.lbl}</span><span class="arval neutral">${m.val}</span></div>`).join('')}
+      </div>
+    </div>
+    <div class="verdict" style="grid-column:1/-1"><h3>⚡ Analysis</h3><div class="vtext">${verdict}</div></div>`;
+}
+
 // Redraw on resize
 let rt;
-window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(S.a&&S.b)render();},250)});
+window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(S.a?.length)render();},250)});
 </script>
 </body>
 </html>

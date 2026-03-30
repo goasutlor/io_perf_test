@@ -1,0 +1,17 @@
+{
+  "name": "io_perf_test",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IO sweep + io_compare.html (dev tooling only — see README)",
+  "scripts": {
+    "screenshots": "node scripts/capture-readme-screenshots.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/goasutlor/io_perf_test.git"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "playwright": "^1.49.1"
+  }
+}

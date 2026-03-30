@@ -43,6 +43,7 @@
 - **Analysis tooltips (English)** — Row-level `title` hints on the Analysis / Performance Summary table (metric meaning, higher vs lower is better). The **Latency × IOPS Score** chart title includes a dotted underline and a tooltip explaining the formula, that higher is better, and how it relates to **Best IO Score**.
 - **Landing page** — On first load (before generating a report), the page shows **release notes** (v4.0.1 + v4.0 summary) and a **sortable table of all IO workload profiles** (`profile_name`, group, label, description from `PROFILE_META`). This block is hidden while a report is open; refresh the page to see it again.
 - **README.md** — Full **IO workload catalog** (all 21 named profiles + main menu modes + Standard Sweep fio `rw=` options) documented on the repository front page.
+- **Screenshots** — `docs/screenshots/` holds current `io_compare.html` captures; `npm run screenshots` (Playwright) regenerates them — see README.
 
 ---
 

@@ -305,11 +305,25 @@ The script prints a banner, confirmation of settings (path, workload, sweep 1→
 
 ### Web report (HTML)
 
-Comparison UI after uploading two CSV files:
+Sample UI (`docs/screenshots/`, from `sweep_results_1.csv` / `sweep_results2.csv`):
 
-![IO Comparison Report — overview](Screenshot%202026-03-30%20095752.png)
+**Landing** — release notes + full IO profile table:
 
-![IO Comparison Report — charts/detail](Screenshot%202026-03-30%20095817.png)
+![io_compare landing — release notes and profile catalog](docs/screenshots/io_compare-01-landing.png)
+
+**Single system — Overview** (first tab after Generate):
+
+![io_compare single-system overview](docs/screenshots/io_compare-02-overview.png)
+
+**Single system — Latency distribution** (second tab):
+
+![io_compare latency tab](docs/screenshots/io_compare-03-latency-tab.png)
+
+**Compare 2 Systems — Overview**:
+
+![io_compare A/B compare overview](docs/screenshots/io_compare-04-compare-overview.png)
+
+**Regenerate screenshots:** from repo root, run `python -m http.server 8765` in another terminal, then `npm install` once and `npm run screenshots` (uses Playwright; see `scripts/capture-readme-screenshots.mjs`).
 
 ---
 
@@ -324,7 +338,9 @@ Comparison UI after uploading two CSV files:
 | `sweep_results_1.csv`, `sweep_results2.csv` | Sample CSV outputs |
 | `Example Result.txt` | Full saved terminal output (config, steps, summary, sweet spot) |
 | `shell_realtime_progress_example.txt` | Static “frames” of the live progress bar / spinner |
-| `Screenshot *.png` | Sample HTML report screenshots |
+| `docs/screenshots/*.png` | HTML report screenshots (see README “Web report”) |
+| `scripts/capture-readme-screenshots.mjs` | Regenerate `docs/screenshots` with Playwright |
+| `package.json` | Dev-only: Playwright for screenshot script |
 
 ---
 

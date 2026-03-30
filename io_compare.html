@@ -189,6 +189,22 @@ tr:hover td{background:var(--bg3)}
 .upcard.dimmed{opacity:.45;pointer-events:none}
 footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10px;
        letter-spacing:.07em;padding-top:20px;border-top:1px solid var(--border);margin-top:12px}
+/* Landing: release notes + profile catalog (hidden while report is open) */
+.homeinfo{margin-top:28px;display:flex;flex-direction:column;gap:16px}
+.homecard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:20px 22px}
+.hometitle{font-size:15px;font-weight:700;color:var(--text);margin:0 0 10px;font-family:var(--sans);letter-spacing:.02em}
+.homemuted{font-size:11px;color:var(--muted);line-height:1.55;margin:0 0 14px}
+.relv{margin-bottom:16px}
+.relv:last-child{margin-bottom:0}
+.relv h3{font-size:11px;font-family:var(--mono);font-weight:600;color:var(--a);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px}
+.relv ul{margin:0;padding-left:18px;font-size:12px;line-height:1.6;color:var(--text)}
+.relv ul.compact{font-size:11px;color:var(--muted);line-height:1.55}
+.profile-table-wrap{overflow-x:auto;margin:0 -4px}
+.profile-table{width:100%;min-width:720px;border-collapse:collapse;font-size:11px}
+.profile-table th,.profile-table td{padding:7px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+.profile-table th{background:var(--bg3);font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.profile-table td code{font-size:10px;font-family:var(--mono);background:var(--bg4);padding:2px 5px;border-radius:4px;color:var(--text)}
+.profile-table .pg{color:var(--muted);font-size:10px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -197,7 +213,7 @@ footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10
 <header>
   <div class="htag">Storage Performance Analysis</div>
   <h1>Universal IO<br>Testing Report</h1>
-  <div class="hsub">v4.0 — Single CSV or A/B compare · auto-detects <code>profile_group</code> / <code>profile_name</code> · charts by workload group (8 modes / 21 profiles from io_sweep.sh)</div>
+  <div class="hsub">v4.0.1 — Single CSV or A/B compare · auto-detects <code>profile_group</code> / <code>profile_name</code> · charts by workload group (8 modes / 21 profiles from io_sweep.sh)</div>
 </header>
 
 <div class="errmsg" id="errMsg"></div>
@@ -233,6 +249,33 @@ footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10
 <div class="runwrap">
   <button class="btnrun" id="btnRun" disabled><span id="btnRunLbl">⚡ Generate Report</span></button>
 </div>
+
+<section class="homeinfo" id="homeInfo" aria-label="Release notes and workload profiles">
+  <article class="homecard">
+    <h2 class="hometitle">Release notes</h2>
+    <p class="homemuted">What changed in this bundle — full history is in <code>RELEASE.md</code> alongside the tools.</p>
+    <div class="relv">
+      <h3>v4.0.1 · Web report (io_compare.html)</h3>
+      <ul>
+        <li><strong>Sweet spot on charts</strong> — Column tint, &quot;sweet spot&quot; sub-label under the jobs axis, tight double-ring at the point (compare, single, universal/profile). Scatter QD vs IOPS keeps point rings only.</li>
+        <li><strong>Analysis typography</strong> — Verdict body uses one system UI font stack; emphasis via color and weight only.</li>
+        <li><strong>Tooltips</strong> — English row hints on the Analysis / Performance Summary table; the Latency × IOPS Score chart title explains the formula and how it ties to <strong>Best IO Score</strong>.</li>
+      </ul>
+    </div>
+    <div class="relv">
+      <h3>v4.0 · Universal IO tooling</h3>
+      <ul class="compact">
+        <li><strong>io_sweep.sh</strong> — eight modes, 21 workload profiles, CSV columns <code>profile_name</code> / <code>profile_group</code>.</li>
+        <li><strong>io_compare.html</strong> — single-system and A/B compare; auto profile layout when CSVs contain multiple profiles; universal two-file compare for matching profiles.</li>
+      </ul>
+    </div>
+  </article>
+  <article class="homecard">
+    <h2 class="hometitle">IO workload profiles</h2>
+    <p class="homemuted">These <code>profile_name</code> keys and descriptions match <code>PROFILE_META</code> in this page and the workloads in <code>io_sweep.sh</code>. CSV columns <code>profile_name</code> and <code>profile_group</code> drive charts and tabs.</p>
+    <div class="profile-table-wrap"><div id="profileCatalog"></div></div>
+  </article>
+</section>
 
 <div id="results">
   <div class="tabs" id="tabBar"></div>
@@ -312,7 +355,7 @@ footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10
   </div><!-- /#reportPanels -->
 </div>
 
-<footer>io_compare.html v4.0 &nbsp;·&nbsp; self-contained · works offline &nbsp;·&nbsp; Idea &amp; context: Sontas Jiamsripong &nbsp;·&nbsp; Release: see RELEASE.md in repository</footer>
+<footer>io_compare.html v4.0.1 &nbsp;·&nbsp; self-contained · works offline &nbsp;·&nbsp; Idea &amp; context: Sontas Jiamsripong &nbsp;·&nbsp; Release: see RELEASE.md in repository</footer>
 </div>
 
 <script>
@@ -481,6 +524,13 @@ function setMode(m){
 function checkReady(){
   const ok = S.a?.length && (MODE===1 || S.b?.length);
   document.getElementById('btnRun').disabled=!ok;
+}
+/** Show report panels and hide landing release/profile section */
+function setResultsVisible(show){
+  const res=document.getElementById('results');
+  const home=document.getElementById('homeInfo');
+  if(res) res.style.display=show?'block':'none';
+  if(home) home.style.display=show?'none':'block';
 }
 
 // ── Tab system ────────────────────────────────────────────────────────────────
@@ -662,6 +712,7 @@ const CS={a:'#0057ff',b:'#e0284f'};
 const fa='rgba(0,87,255,0.08)', fb='rgba(224,40,79,0.08)';
 function fmtN(v,u=''){ return v>=1e6?(v/1e6).toFixed(2)+'M'+u:v>=1000?(v/1000).toFixed(1)+'K'+u:v.toFixed(v<10?2:0)+u; }
 function escAttr(s){ return String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function escapeHtml(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 /** Row tooltips in Analysis — labels must match metric keys exactly */
 const ANALYSIS_HINTS={
   'Peak IOPS':'Highest IOPS observed at any job count in this sweep. Higher is better.',
@@ -752,7 +803,7 @@ function render(){
   const nB=document.getElementById('nameB').value.trim()||'System B';
 
   initTabs();
-  document.getElementById('results').style.display='block';
+  setResultsVisible(true);
   setTimeout(()=>switchTab(0),10);
   setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);
 
@@ -1023,6 +1074,22 @@ const PROFILE_META={
   // Fallbacks
   standard:      {color:'#0057ff',label:'Standard',      group:'Standard',  desc:'Standard sweep'},
 };
+/** Fill landing-page table from PROFILE_META (sorted by group, then label) */
+function renderProfileCatalog(){
+  const el=document.getElementById('profileCatalog');
+  if(!el) return;
+  const entries=Object.entries(PROFILE_META).map(([key,meta])=>({key,...meta}));
+  const groups=sortGroups([...new Set(entries.map(e=>e.group))]);
+  let html='<table class="profile-table"><thead><tr><th>Group</th><th><code>profile_name</code></th><th>Label</th><th>Description</th></tr></thead><tbody>';
+  for(const g of groups){
+    entries.filter(e=>e.group===g).sort((a,b)=>a.label.localeCompare(b.label)).forEach(r=>{
+      html+=`<tr><td class="pg">${escapeHtml(r.group)}</td><td><code>${escapeHtml(r.key)}</code></td><td>${escapeHtml(r.label)}</td><td>${escapeHtml(r.desc)}</td></tr>`;
+    });
+  }
+  html+='</tbody></table>';
+  el.innerHTML=html;
+}
+renderProfileCatalog();
 function getMeta(name,grp){
   return PROFILE_META[name]||PROFILE_META[grp]||{color:'#888780',label:name||grp||'Unknown',group:'Other',desc:''};
 }
@@ -1124,7 +1191,7 @@ function renderProfileSingle(da){
   document.getElementById('reportPanels').innerHTML=panels;
   document.getElementById('pfSumGrid').innerHTML=sumCards;
   deferredDraws.forEach(fn=>fn());
-  document.getElementById('results').style.display='block';
+  setResultsVisible(true);
   setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);
   switchTab(0);
 }
@@ -1206,7 +1273,7 @@ function renderProfileCompare(da,db){
   const sg=document.getElementById('pfSumGrid2');
   if(sg) sg.innerHTML=sumCards;
   deferredCmp.forEach(fn=>fn());
-  document.getElementById('results').style.display='block';
+  setResultsVisible(true);
   setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);
   switchTab(0);
 }
@@ -1221,7 +1288,7 @@ function renderSingle(da){
   // Hide compare-only tabs
   for(let i=5;i<=6;i++){const p=document.getElementById('tab'+i);if(p)p.style.display='none';}
 
-  document.getElementById('results').style.display='block';
+  setResultsVisible(true);
   setTimeout(()=>switchTab(0),10);
   setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);
 

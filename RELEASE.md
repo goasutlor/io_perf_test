@@ -41,6 +41,7 @@
 - **Sweet spot on charts** — Clear visual cues for the sweet-spot job count without obscuring numeric labels: subtle column tint behind the plot, a **sweet spot** sub-label under the jobs axis, and a tight double-ring at the data point (compare, single, and universal/profile flows). Scatter (QD vs IOPS) keeps point rings only; no vertical line through labels.
 - **Analysis & Recommendation typography** — Verdict body (`.vtext`) uses a single readable system UI font stack; emphasis uses color and weight only, consistent with the rest of the report.
 - **Analysis tooltips (English)** — Row-level `title` hints on the Analysis / Performance Summary table (metric meaning, higher vs lower is better). The **Latency × IOPS Score** chart title includes a dotted underline and a tooltip explaining the formula, that higher is better, and how it relates to **Best IO Score**.
+- **Landing page** — On first load (before generating a report), the page shows **release notes** (v4.0.1 + v4.0 summary) and a **sortable table of all IO workload profiles** (`profile_name`, group, label, description from `PROFILE_META`). This block is hidden while a report is open; refresh the page to see it again.
 
 ---
 

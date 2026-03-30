@@ -376,13 +376,15 @@ menu_standard() {
   select_path
 
   echo
-  echo -e "  ${BLD}Workload type${RST}"
+  echo -e "  ${BLD}Workload type${RST}  ${DIM}(fio rw= pattern — Standard Sweep only)${RST}"
+  echo -e "  ${DIM}Other modes (2–8) pick ready-made profiles: Database, VM, Streaming, Backup, K8s, Spark, or full suite — not this list.${RST}"
+  echo
   echo "   1) randwrite   Random write ← recommended (DB/VM worst case)"
   echo "   2) randread    Random read  (DB query pattern)"
   echo "   3) read        Sequential read  (throughput test)"
   echo "   4) write       Sequential write (throughput test)"
   echo "   5) randrw      Mixed 70R/30W (OLTP simulation)"
-  local wl; read -rp "  Select [default=1]: " wl || wl="1"
+  local wl; read -rp "  Select fio rw [default=1]: " wl || wl="1"
   case "${wl:-1}" in
     1)RW="randwrite";;2)RW="randread";;3)RW="read";;
     4)RW="write";;5)RW="randrw";;*) RW="randwrite";;

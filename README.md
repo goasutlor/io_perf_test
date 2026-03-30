@@ -1,6 +1,13 @@
 # IO Performance Sweep & Comparison Report
 
-**v4.0 / v4.0.1 — Universal IO Testing Tool:** a **jobs 1→N** sweep using [fio](https://github.com/axboe/fio), exporting **CSV** with optional **`profile_name`** / **`profile_group`** columns. Open **`io_compare.html`** locally for **single-system** reports, **A/B compare**, or **universal** multi-profile CSVs (tabs follow workload group). No server required.
+**v4.0.x — Universal IO Testing Tool:** a **jobs 1→N** sweep using [fio](https://github.com/axboe/fio), exporting **CSV** with optional **`profile_name`** / **`profile_group`** columns. Open **`io_compare.html`** locally for **single-system** reports, **A/B compare**, or **universal** multi-profile CSVs (tabs follow workload group). No server required.
+
+**Front-page quick model (2 Layers):**
+
+1. **Storage Layer first** — choose `Filesystem` / `HDFS` / `Object (S3)`
+2. **IO Profile Layer second** — choose Spark behavior: `spark_read`, `spark_write`, `spark_shuffle`, `spark_head`, `spark_move` (or full suite)
+
+For `HDFS` and `S3`, this repo intentionally focuses on **Spark-like workload behavior**.
 
 Repository: [https://github.com/goasutlor/io_perf_test](https://github.com/goasutlor/io_perf_test)
 

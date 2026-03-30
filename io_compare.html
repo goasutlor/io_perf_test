@@ -135,13 +135,22 @@ canvas{display:block;width:100%!important}
 .sa-side h3{color:var(--a)}.sb-side h3{color:var(--b)}
 .anlrow{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
 .anlrow:last-child{border-bottom:none}
+.anlrow.has-tip{cursor:help}
 .arlbl{color:var(--muted);font-family:var(--mono);font-size:11px}
+.ctitle.has-tip{cursor:help;text-decoration:underline dotted;text-underline-offset:3px;text-decoration-color:rgba(124,133,168,0.45)}
 .arval{font-weight:700;font-family:var(--mono);font-size:11px}
 .better{color:var(--green)}.worse{color:var(--b)}.neutral{color:var(--text)}
 .verdict{grid-column:1/-1;background:var(--bg3);border-radius:var(--r);padding:18px;border-left:3px solid var(--amber)}
 .verdict h3{font-size:11px;color:var(--amber);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
-.vtext{font-size:13px;line-height:1.85;color:var(--text)}
-.vtext strong{color:var(--a)}.vtext em{color:var(--b);font-style:normal;font-weight:700}
+/* Body text: one neutral sans for readability; emphasis = color + weight only (no second font) */
+.vtext{
+  font-size:13px;line-height:1.75;color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-weight:400;
+}
+.vtext strong,.vtext em{font-family:inherit;font-style:normal;font-weight:600}
+.vtext strong{color:var(--a)}
+.vtext em{color:var(--b)}
 
 /* Full table */
 .tcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);
@@ -263,7 +272,7 @@ footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10
     </div>
     <div class="cgrid2">
       <div class="ccard"><div class="chdr"><div class="ctitle">Total QD vs IOPS (saturation curve)</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_qd"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_qd"></span></div></div></div><canvas id="c_qd" height="200"></canvas></div>
-      <div class="ccard"><div class="chdr"><div class="ctitle">Latency × IOPS Score (higher = better)</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_score"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_score"></span></div></div></div><canvas id="c_score" height="200"></canvas></div>
+      <div class="ccard"><div class="chdr"><div class="ctitle has-tip" title="Per-point score = IOPS ÷ (avg latency × P99 latency) × 1000. Higher is better. Balances throughput and tail latency. The Analysis &quot;Best IO Score&quot; value is the maximum over all jobs, same formula as this chart.">Latency × IOPS Score (higher = better)</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_score"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_score"></span></div></div></div><canvas id="c_score" height="200"></canvas></div>
     </div>
   </div>
 
@@ -495,8 +504,14 @@ function drawChart(id,datasets,opts={}){
   el.width=W*dpr; el.height=H*dpr;
   el.style.width=W+'px'; el.style.height=H+'px';
   const ctx=el.getContext('2d'); ctx.scale(dpr,dpr);
-  const P={t:18,r:20,b:42,l:60};
+  const hasSweet=opts.sweetMarks?.length && !opts.scatter;
+  const P={t:18,r:20,b:hasSweet?56:42,l:60};
   const cW=W-P.l-P.r, cH=H-P.t-P.b;
+  const hexToRgba=(hex,a)=>{
+    const h=(hex||'#888').replace('#','');
+    if(h.length!==6) return `rgba(200,180,80,${a})`;
+    return `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`;
+  };
 
   let allY=[];
   datasets.forEach(d=>{
@@ -509,6 +524,27 @@ function drawChart(id,datasets,opts={}){
   const n=opts.labels?.length||Math.max(...datasets.map(d=>d.data.length));
   const labels=opts.labels||Array.from({length:n},(_,i)=>i+1);
 
+  // Sweet-spot column tint (behind grid & series — does not cross number labels)
+  if(hasSweet){
+    const xAt=i=>P.l+cW*i/Math.max(n-1,1);
+    const byXi=new Map();
+    opts.sweetMarks.forEach(m=>{
+      if(m.xi<0||m.xi>=n)return;
+      if(!byXi.has(m.xi)) byXi.set(m.xi,[]);
+      byXi.get(m.xi).push(m.color||'#c9a227');
+    });
+    byXi.forEach((colors,xi)=>{
+      const i=xi;
+      const left=i===0?P.l:(xAt(i-1)+xAt(i))/2;
+      const right=i===n-1?P.l+cW:(xAt(i)+xAt(i+1))/2;
+      const op=0.1/Math.max(colors.length,1);
+      colors.forEach(c=>{
+        ctx.fillStyle=hexToRgba(c,op);
+        ctx.fillRect(left,P.t,right-left,cH);
+      });
+    });
+  }
+
   // Grid
   ctx.font=`10px JetBrains Mono,monospace`;
   for(let i=0;i<=5;i++){
@@ -519,12 +555,26 @@ function drawChart(id,datasets,opts={}){
     ctx.fillStyle='#7c85a8'; ctx.textAlign='right';
     ctx.fillText(opts.yUnit?lbl+opts.yUnit:lbl,P.l-5,y+3.5);
   }
+  const sweetTickColor=new Map();
+  if(hasSweet){
+    opts.sweetMarks.forEach(m=>{
+      if(m.xi>=0&&m.xi<n) sweetTickColor.set(m.xi,m.color||'#c9a227');
+    });
+  }
   for(let i=0;i<n;i++){
     const x=P.l+cW*i/Math.max(n-1,1);
     ctx.strokeStyle='rgba(30,40,80,0.05)'; ctx.lineWidth=.4;
     ctx.beginPath(); ctx.moveTo(x,P.t); ctx.lineTo(x,P.t+cH); ctx.stroke();
     ctx.fillStyle='#7c85a8'; ctx.textAlign='center'; ctx.font='10px JetBrains Mono,monospace';
     ctx.fillText(String(labels[i]),x,P.t+cH+15);
+    if(sweetTickColor.has(i)){
+      const sc=sweetTickColor.get(i);
+      ctx.fillStyle=sc;
+      ctx.font='8px JetBrains Mono,monospace';
+      ctx.globalAlpha=0.95;
+      ctx.fillText('sweet spot',x,P.t+cH+30);
+      ctx.globalAlpha=1;
+    }
   }
   if(opts.yLabel){
     ctx.save(); ctx.translate(11,P.t+cH/2); ctx.rotate(-Math.PI/2);
@@ -573,12 +623,65 @@ function drawChart(id,datasets,opts={}){
       ctx.fillText(lbl,p.x,p.y-9);
     });
   });
+
+  // Sweet-spot: tight ring on the point only (no line through labels, no icon above values)
+  if(opts.sweetMarks?.length){
+    const getXY=(ds,i)=>{
+      const v=ds.data[i];
+      if(opts.scatter){
+        const data=ds.data;
+        const xs=data.map(p=>p.x), minX=Math.min(...xs), maxX=Math.max(...xs);
+        const xSpan=Math.max(maxX-minX,1e-9);
+        return{x:P.l+cW*(v.x-minX)/xSpan,y:P.t+cH-cH*(v.y-minY)/(maxY-minY)};
+      }
+      return{x:P.l+cW*i/Math.max(n-1,1),y:P.t+cH-cH*(v-minY)/(maxY-minY)};
+    };
+    opts.sweetMarks.forEach(m=>{
+      if(m.xi<0||m.ds<0||m.ds>=datasets.length)return;
+      const ds=datasets[m.ds];
+      if(!ds||m.xi>=ds.data.length)return;
+      const col=m.color||'#c9a227';
+      const p=getXY(ds,m.xi);
+      const pr=ds.pr||4;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,pr+2,0,Math.PI*2);
+      ctx.strokeStyle=col;
+      ctx.lineWidth=2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,pr+0.5,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,255,255,0.75)';
+      ctx.lineWidth=1;
+      ctx.stroke();
+    });
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const CS={a:'#0057ff',b:'#e0284f'};
 const fa='rgba(0,87,255,0.08)', fb='rgba(224,40,79,0.08)';
 function fmtN(v,u=''){ return v>=1e6?(v/1e6).toFixed(2)+'M'+u:v>=1000?(v/1000).toFixed(1)+'K'+u:v.toFixed(v<10?2:0)+u; }
+function escAttr(s){ return String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+/** Row tooltips in Analysis — labels must match metric keys exactly */
+const ANALYSIS_HINTS={
+  'Peak IOPS':'Highest IOPS observed at any job count in this sweep. Higher is better.',
+  'Peak BW':'Peak throughput (MB/s) observed. Higher is better.',
+  'Min Avg Latency':'Lowest average latency across all job points. Lower is better.',
+  'Min P99 Latency':'Lowest P99 latency. Lower is better — reflects main tail-latency behavior.',
+  'Min P99.9 Latency':'Lowest P99.9 latency. Lower is better.',
+  'Sweet Spot':'Job count picked by the sweet-spot rule (low-latency band with strong IOPS under the threshold). A reference point, not simply peak IOPS.',
+  'IOPS@Sweet':'IOPS at the sweet-spot job count. Higher is better when comparing systems.',
+  'IOPS @ Sweet':'IOPS at the sweet-spot job count. Higher is better.',
+  'Lat@Sweet':'Average latency at the sweet-spot job count. Lower is better.',
+  'Lat @ Sweet':'Average latency at the sweet-spot job count. Lower is better.',
+  'Max Latency seen':'Maximum latency (worst case) recorded in this sweep. Lower is better.',
+  'Best IO Score':'Composite score per job point = IOPS ÷ (avg latency × P99 latency) × 1000, same as the Latency×IOPS Score chart. Shown value is the best (highest) across all jobs. Higher is better — balances throughput and tail latency; not a raw IOPS reading.',
+};
+function anlRowAttrs(lbl){
+  const t=ANALYSIS_HINTS[lbl];
+  if(!t) return 'class="anlrow"';
+  return `class="anlrow has-tip" title="${escAttr(t)}"`;
+}
 function pct(a,b){ return b?((a-b)/b*100).toFixed(1):'—'; }
 function findSweet(rows){
   if(!rows?.length) return {jobs:0,iops:0,lat_avg:0,bw_mbs:0};
@@ -586,6 +689,34 @@ function findSweet(rows){
   let best=rows[0];
   rows.forEach(r=>{if(r.lat_avg<=ml*2&&r.iops>=best.iops)best=r;});
   return best;
+}
+/** Chart overlays: {ds,xi,color} — xi = index along x (jobs axis). */
+function sweetMarksCompare(jobs,sweetA,sweetB){
+  const ia=jobs.indexOf(sweetA.jobs), ib=jobs.indexOf(sweetB.jobs);
+  const m=[];
+  if(ia>=0) m.push({ds:0,xi:ia,color:CS.a});
+  if(ib>=0) m.push({ds:1,xi:ib,color:CS.b});
+  return m;
+}
+function sweetMarksSingle(jobs,sweet){
+  const i=jobs.indexOf(sweet.jobs);
+  return i>=0?[{ds:0,xi:i,color:'#e8a838'}]:[];
+}
+function sweetMarksLatOnly(jobs,sweet,side){
+  const i=jobs.indexOf(sweet.jobs);
+  if(i<0) return [];
+  return [{ds:0,xi:i,color:side==='a'?CS.a:CS.b}];
+}
+function sweetMarksBwRange(jobs,sweetA,sweetB){
+  const ia=jobs.indexOf(sweetA.jobs), ib=jobs.indexOf(sweetB.jobs);
+  const m=[];
+  if(ia>=0) m.push({ds:1,xi:ia,color:CS.a});
+  if(ib>=0) m.push({ds:3,xi:ib,color:CS.b});
+  return m;
+}
+function sweetMarksBwRangeSingle(jobs,sweet){
+  const i=jobs.indexOf(sweet.jobs);
+  return i>=0?[{ds:1,xi:i,color:'#e8a838'}]:[];
 }
 function alignByJobs(da,db){
   const jobs=[...new Set([...da.map(r=>r.jobs),...db.map(r=>r.jobs)])].sort((a,b)=>a-b);
@@ -684,39 +815,43 @@ function render(){
   }).join('');
 
   const co={labels:lbl};
+  const smCmp=sweetMarksCompare(jobs,sweetA,sweetB);
+  const smLatA=sweetMarksLatOnly(jobs,sweetA,'a');
+  const smLatB=sweetMarksLatOnly(jobs,sweetB,'b');
+  const smBwR=sweetMarksBwRange(jobs,sweetA,sweetB);
   setTimeout(()=>{
-    drawChart('c_iops',[{data:iopsA,color:CS.a,fill:fa},{data:iopsB,color:CS.b,fill:fb,dash:[5,3]}],co);
-    drawChart('c_bw',[{data:bwA,color:CS.a,fill:fa},{data:bwB,color:CS.b,fill:fb,dash:[5,3]}],co);
-    drawChart('c_lat',[{data:latA,color:CS.a,fill:fa},{data:latB,color:CS.b,fill:fb,dash:[5,3]}],{...co,yUnit:'ms'});
-    drawChart('c_p99',[{data:p99A,color:CS.a,fill:fa},{data:p99B,color:CS.b,fill:fb,dash:[5,3]}],{...co,yUnit:'ms'});
+    drawChart('c_iops',[{data:iopsA,color:CS.a,fill:fa},{data:iopsB,color:CS.b,fill:fb,dash:[5,3]}],{...co,sweetMarks:smCmp});
+    drawChart('c_bw',[{data:bwA,color:CS.a,fill:fa},{data:bwB,color:CS.b,fill:fb,dash:[5,3]}],{...co,sweetMarks:smCmp});
+    drawChart('c_lat',[{data:latA,color:CS.a,fill:fa},{data:latB,color:CS.b,fill:fb,dash:[5,3]}],{...co,yUnit:'ms',sweetMarks:smCmp});
+    drawChart('c_p99',[{data:p99A,color:CS.a,fill:fa},{data:p99B,color:CS.b,fill:fb,dash:[5,3]}],{...co,yUnit:'ms',sweetMarks:smCmp});
     // Tab 1
     drawChart('c_latA',[
       {data:latA,color:'#3B8BD4',lw:2},{data:p95A,color:'#EF9F27',lw:1.5,dash:[5,3]},
       {data:p99A,color:'#E24B4A',lw:1.5,dash:[3,3]},{data:p999A,color:'#A32D2D',lw:1,dash:[2,4]}
-    ],{...co,yUnit:'ms'});
+    ],{...co,yUnit:'ms',sweetMarks:smLatA});
     drawChart('c_latB',[
       {data:latB,color:'#3B8BD4',lw:2},{data:p95B,color:'#EF9F27',lw:1.5,dash:[5,3]},
       {data:p99B,color:'#E24B4A',lw:1.5,dash:[3,3]},{data:p999B,color:'#A32D2D',lw:1,dash:[2,4]}
-    ],{...co,yUnit:'ms'});
+    ],{...co,yUnit:'ms',sweetMarks:smLatB});
     drawChart('c_tail',[
       {data:p999A,color:CS.a,fill:fa,lw:2.5},{data:p999B,color:CS.b,fill:fb,dash:[5,3]}
-    ],{...co,yUnit:'ms'});
-    drawChart('c_latmax',[{data:latmaxA,color:CS.a},{data:latmaxB,color:CS.b,dash:[5,3]}],{...co,yUnit:'ms'});
+    ],{...co,yUnit:'ms',sweetMarks:smCmp});
+    drawChart('c_latmax',[{data:latmaxA,color:CS.a},{data:latmaxB,color:CS.b,dash:[5,3]}],{...co,yUnit:'ms',sweetMarks:smCmp});
     // Tab 2
-    drawChart('c_bwstd',[{data:bwstdA,color:CS.a},{data:bwstdB,color:CS.b,dash:[5,3]}],co);
-    drawChart('c_eff',[{data:effA,color:CS.a,fill:fa},{data:effB,color:CS.b,fill:fb,dash:[5,3]}],co);
-    drawChart('c_qd',[{data:qdA,color:CS.a,pr:5,pf:CS.a},{data:qdB,color:CS.b,pr:5,pf:CS.b,dash:[5,3]}],{scatter:true});
-    drawChart('c_score',[{data:scoreA,color:CS.a,fill:fa},{data:scoreB,color:CS.b,fill:fb,dash:[5,3]}],co);
+    drawChart('c_bwstd',[{data:bwstdA,color:CS.a},{data:bwstdB,color:CS.b,dash:[5,3]}],{...co,sweetMarks:smCmp});
+    drawChart('c_eff',[{data:effA,color:CS.a,fill:fa},{data:effB,color:CS.b,fill:fb,dash:[5,3]}],{...co,sweetMarks:smCmp});
+    drawChart('c_qd',[{data:qdA,color:CS.a,pr:5,pf:CS.a},{data:qdB,color:CS.b,pr:5,pf:CS.b,dash:[5,3]}],{scatter:true,sweetMarks:smCmp});
+    drawChart('c_score',[{data:scoreA,color:CS.a,fill:fa},{data:scoreB,color:CS.b,fill:fb,dash:[5,3]}],{...co,sweetMarks:smCmp});
     // Tab 3
-    drawChart('c_cu',[{data:cuA,color:CS.a},{data:cuB,color:CS.b,dash:[5,3]}],{...co,yUnit:'%'});
-    drawChart('c_cs',[{data:csA,color:CS.a},{data:csB,color:CS.b,dash:[5,3]}],{...co,yUnit:'%'});
-    drawChart('c_util',[{data:utilA,color:CS.a},{data:utilB,color:CS.b,dash:[5,3]}],{...co,yUnit:'%'});
-    drawChart('c_ctx',[{data:ctxA,color:CS.a},{data:ctxB,color:CS.b,dash:[5,3]}],co);
+    drawChart('c_cu',[{data:cuA,color:CS.a},{data:cuB,color:CS.b,dash:[5,3]}],{...co,yUnit:'%',sweetMarks:smCmp});
+    drawChart('c_cs',[{data:csA,color:CS.a},{data:csB,color:CS.b,dash:[5,3]}],{...co,yUnit:'%',sweetMarks:smCmp});
+    drawChart('c_util',[{data:utilA,color:CS.a},{data:utilB,color:CS.b,dash:[5,3]}],{...co,yUnit:'%',sweetMarks:smCmp});
+    drawChart('c_ctx',[{data:ctxA,color:CS.a},{data:ctxB,color:CS.b,dash:[5,3]}],{...co,sweetMarks:smCmp});
     // Tab 2 bw range (stacked min/max area)
     drawChart('c_bwrange',[
       {data:bwminA,color:CS.a,fill:fa,lw:1,dash:[3,3]},{data:bwmaxA,color:CS.a,lw:2},
       {data:bwminB,color:CS.b,fill:fb,lw:1,dash:[3,3]},{data:bwmaxB,color:CS.b,lw:2,dash:[5,3]}
-    ],co);
+    ],{...co,sweetMarks:smBwR});
   },100);
 
   // ── Tab 4: IO Profile ───────────────────────────────────────────────────────
@@ -810,11 +945,11 @@ function render(){
   document.getElementById('anlGrid').innerHTML=`
     <div class="anlsec sa-side">
       <h3>${nA}</h3>
-      ${metricsA.map(m=>`<div class="anlrow"><span class="arlbl">${m.lbl}</span><span class="arval ${m.cls}">${m.val}</span></div>`).join('')}
+      ${metricsA.map(m=>`<div ${anlRowAttrs(m.lbl)}><span class="arlbl">${m.lbl}</span><span class="arval ${m.cls}">${m.val}</span></div>`).join('')}
     </div>
     <div class="anlsec sb-side">
       <h3>${nB}</h3>
-      ${metricsB.map(m=>`<div class="anlrow"><span class="arlbl">${m.lbl}</span><span class="arval ${m.cls}">${m.val}</span></div>`).join('')}
+      ${metricsB.map(m=>`<div ${anlRowAttrs(m.lbl)}><span class="arlbl">${m.lbl}</span><span class="arval ${m.cls}">${m.val}</span></div>`).join('')}
     </div>
     <div class="verdict"><h3>⚡ Analysis &amp; Recommendation</h3><div class="vtext">${verdict}</div></div>`;
 
@@ -897,23 +1032,27 @@ function safeId(s){ return String(s||'x').replace(/[^a-z0-9]/gi,'_'); }
 
 function profileSectionChartsSingle(rows,meta,sfx){
   const lbl=rows.map(r=>r.jobs+' job'+(r.jobs>1?'s':''));
+  const jobArr=rows.map(r=>r.jobs);
+  const sweet=findSweet(rows);
+  const sm=sweetMarksSingle(jobArr,sweet).map(m=>({...m,color:meta.color}));
+  const smLat=sweetMarksLatOnly(jobArr,sweet,'a').map(m=>({...m,color:meta.color}));
   const iopsD=rows.map(r=>r.iops), bwD=rows.map(r=>r.bw_mbs);
   const latD=rows.map(r=>r.lat_avg), p99D=rows.map(r=>r.lat_p99);
   const p95D=rows.map(r=>r.lat_p95||0), p999D=rows.map(r=>r.lat_p999||0);
   const fill=meta.color+'18';
   setTimeout(()=>{
-    drawChart('sp_iops_'+sfx,[{data:iopsD,color:meta.color,fill:fill}],{labels:lbl});
-    drawChart('sp_bw_'+sfx, [{data:bwD,  color:meta.color,fill:fill}],{labels:lbl});
+    drawChart('sp_iops_'+sfx,[{data:iopsD,color:meta.color,fill:fill}],{labels:lbl,sweetMarks:sm});
+    drawChart('sp_bw_'+sfx, [{data:bwD,  color:meta.color,fill:fill}],{labels:lbl,sweetMarks:sm});
     drawChart('sp_lat_'+sfx,[
       {data:latD, color:'#3B8BD4',lw:2},
       {data:p95D, color:'#EF9F27',lw:1.5,dash:[5,3]},
       {data:p99D, color:'#E24B4A',lw:1.5,dash:[3,3]},
       {data:p999D,color:'#A32D2D',lw:1,dash:[2,4]},
-    ],{labels:lbl,yUnit:'ms'});
+    ],{labels:lbl,yUnit:'ms',sweetMarks:smLat});
     drawChart('sp_cmp_'+sfx,[
       {data:latD,color:meta.color,fill:fill},
       {data:p99D,color:meta.color,lw:1.5,dash:[5,3]},
-    ],{labels:lbl,yUnit:'ms'});
+    ],{labels:lbl,yUnit:'ms',sweetMarks:sm});
   },80);
 }
 
@@ -1052,10 +1191,12 @@ function renderProfileCompare(da,db){
         </div>
       </section>`;
       deferredCmp.push(()=>{
-        drawChart('sc_iops_'+sfx,[{data:gA(r=>r.iops),color:'#0057ff',fill:fa},{data:gB(r=>r.iops),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl});
-        drawChart('sc_lat_'+sfx,[{data:gA(r=>r.lat_avg),color:'#0057ff',fill:fa},{data:gB(r=>r.lat_avg),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl,yUnit:'ms'});
-        drawChart('sc_p99_'+sfx,[{data:gA(r=>r.lat_p99),color:'#0057ff',fill:fa},{data:gB(r=>r.lat_p99),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl,yUnit:'ms'});
-        drawChart('sc_bw_'+sfx,[{data:gA(r=>r.bw_mbs),color:'#0057ff',fill:fa},{data:gB(r=>r.bw_mbs),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl});
+        const sweetA=findSweet(ra), sweetB=findSweet(rb);
+        const sm=sweetMarksCompare(jobs,sweetA,sweetB);
+        drawChart('sc_iops_'+sfx,[{data:gA(r=>r.iops),color:'#0057ff',fill:fa},{data:gB(r=>r.iops),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl,sweetMarks:sm});
+        drawChart('sc_lat_'+sfx,[{data:gA(r=>r.lat_avg),color:'#0057ff',fill:fa},{data:gB(r=>r.lat_avg),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl,yUnit:'ms',sweetMarks:sm});
+        drawChart('sc_p99_'+sfx,[{data:gA(r=>r.lat_p99),color:'#0057ff',fill:fa},{data:gB(r=>r.lat_p99),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl,yUnit:'ms',sweetMarks:sm});
+        drawChart('sc_bw_'+sfx,[{data:gA(r=>r.bw_mbs),color:'#0057ff',fill:fa},{data:gB(r=>r.bw_mbs),color:'#e0284f',fill:fb,dash:[5,3]}],{labels:lbl,sweetMarks:sm});
       });
     });
     panels+=`<div class="tabpanel">${inner||'<p style="color:var(--muted)">No matching profiles in this group.</p>'}</div>`;
@@ -1134,32 +1275,35 @@ function renderSingle(da){
   });
   document.querySelectorAll('.dyn-a').forEach(el=>el.textContent=nA);
 
+  const smS=sweetMarksSingle(jobs,sweet);
+  const smLatS=sweetMarksLatOnly(jobs,sweet,'a');
+  const smBwS=sweetMarksBwRangeSingle(jobs,sweet);
   setTimeout(()=>{
-    drawChart('c_iops',[{data:iops,color:C1,fill:F1}],co);
-    drawChart('c_bw',  [{data:bw,  color:C1,fill:F1}],co);
-    drawChart('c_lat', [{data:lat, color:C1,fill:F1}],{...co,yUnit:'ms'});
-    drawChart('c_p99', [{data:p99, color:C1,fill:F1}],{...co,yUnit:'ms'});
+    drawChart('c_iops',[{data:iops,color:C1,fill:F1}],{...co,sweetMarks:smS});
+    drawChart('c_bw',  [{data:bw,  color:C1,fill:F1}],{...co,sweetMarks:smS});
+    drawChart('c_lat', [{data:lat, color:C1,fill:F1}],{...co,yUnit:'ms',sweetMarks:smS});
+    drawChart('c_p99', [{data:p99, color:C1,fill:F1}],{...co,yUnit:'ms',sweetMarks:smS});
     // Latency dist
     drawChart('c_latA',[
       {data:lat, color:'#3B8BD4',lw:2},
       {data:p95, color:'#EF9F27',lw:1.5,dash:[5,3]},
       {data:p99, color:'#E24B4A',lw:1.5,dash:[3,3]},
       {data:p999,color:'#A32D2D',lw:1,dash:[2,4]}
-    ],{...co,yUnit:'ms'});
-    drawChart('c_latB',[{data:latmax,color:'#A32D2D'}],{...co,yUnit:'ms'});
-    drawChart('c_tail',  [{data:p999,  color:C1,fill:F1}],{...co,yUnit:'ms'});
-    drawChart('c_latmax',[{data:latmax,color:'#E24B4A'}],{...co,yUnit:'ms'});
+    ],{...co,yUnit:'ms',sweetMarks:smLatS});
+    drawChart('c_latB',[{data:latmax,color:'#A32D2D'}],{...co,yUnit:'ms',sweetMarks:smS});
+    drawChart('c_tail',  [{data:p999,  color:C1,fill:F1}],{...co,yUnit:'ms',sweetMarks:smS});
+    drawChart('c_latmax',[{data:latmax,color:'#E24B4A'}],{...co,yUnit:'ms',sweetMarks:smS});
     // Throughput
-    drawChart('c_bwrange',[{data:bwmin,color:C1,fill:F1,lw:1,dash:[3,3]},{data:bwmax,color:C1,lw:2}],co);
-    drawChart('c_bwstd', [{data:bwstd, color:C1}],co);
-    drawChart('c_eff',   [{data:eff,   color:C1,fill:F1}],co);
-    drawChart('c_qd',    [{data:qd,    color:C1,pr:5,pf:C1}],{scatter:true});
-    drawChart('c_score', [{data:score, color:C1,fill:F1}],co);
+    drawChart('c_bwrange',[{data:bwmin,color:C1,fill:F1,lw:1,dash:[3,3]},{data:bwmax,color:C1,lw:2}],{...co,sweetMarks:smBwS});
+    drawChart('c_bwstd', [{data:bwstd, color:C1}],{...co,sweetMarks:smS});
+    drawChart('c_eff',   [{data:eff,   color:C1,fill:F1}],{...co,sweetMarks:smS});
+    drawChart('c_qd',    [{data:qd,    color:C1,pr:5,pf:C1}],{scatter:true,sweetMarks:smS});
+    drawChart('c_score', [{data:score, color:C1,fill:F1}],{...co,sweetMarks:smS});
     // Resources
-    drawChart('c_cu',  [{data:cu,  color:C1}],{...co,yUnit:'%'});
-    drawChart('c_cs',  [{data:cs,  color:C1}],{...co,yUnit:'%'});
-    drawChart('c_util',[{data:util,color:C1}],{...co,yUnit:'%'});
-    drawChart('c_ctx', [{data:ctx, color:C1}],co);
+    drawChart('c_cu',  [{data:cu,  color:C1}],{...co,yUnit:'%',sweetMarks:smS});
+    drawChart('c_cs',  [{data:cs,  color:C1}],{...co,yUnit:'%',sweetMarks:smS});
+    drawChart('c_util',[{data:util,color:C1}],{...co,yUnit:'%',sweetMarks:smS});
+    drawChart('c_ctx', [{data:ctx, color:C1}],{...co,sweetMarks:smS});
   },100);
 
   // IO Profile tab
@@ -1208,7 +1352,7 @@ function renderSingle(da){
     <div class="anlsec sa-side" style="grid-column:1/-1">
       <h3>${nA} — Performance Summary</h3>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
-        ${metrics.map(m=>`<div class="anlrow"><span class="arlbl">${m.lbl}</span><span class="arval neutral">${m.val}</span></div>`).join('')}
+        ${metrics.map(m=>`<div ${anlRowAttrs(m.lbl)}><span class="arlbl">${m.lbl}</span><span class="arval neutral">${m.val}</span></div>`).join('')}
       </div>
     </div>
     <div class="verdict" style="grid-column:1/-1"><h3>⚡ Analysis</h3><div class="vtext">${verdict}</div></div>`;

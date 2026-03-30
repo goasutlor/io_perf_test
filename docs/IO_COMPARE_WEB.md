@@ -1,5 +1,7 @@
 # `io_compare.html` — code walkthrough (v4.0)
 
+**Credit:** Idea and context — Sontas Jiamsripong.
+
 This document summarizes how the self-contained page is structured so you can extend charts or profile metadata safely.
 
 ## Layout & modes

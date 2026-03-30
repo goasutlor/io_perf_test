@@ -4,6 +4,8 @@
 
 Repository: [https://github.com/goasutlor/io_perf_test](https://github.com/goasutlor/io_perf_test)
 
+**Author / credit — idea & context:** **Sontas Jiamsripong** — conceptual direction and context for this IO testing workflow and tooling.
+
 **Release notes:** [RELEASE.md](RELEASE.md) · **Web UI walkthrough:** [docs/IO_COMPARE_WEB.md](docs/IO_COMPARE_WEB.md)
 
 ---
@@ -242,3 +244,5 @@ Comparison UI after uploading two CSV files:
 ## License
 
 Provided as-is for internal IO benchmarking and comparison — follow your organization’s policies before use in production environments.
+
+Acknowledgement: idea and project context are credited to **Sontas Jiamsripong**.

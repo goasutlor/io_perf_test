@@ -34,6 +34,32 @@
 
 ---
 
+## v4.0.3 — Unified Spark storage menu (2026-03-30)
+
+- **`storage_spark_sweep.sh`** — Single script: choose **Filesystem (fio)** vs **HDFS** vs **S3**, then **Spark profile** (`spark_read` … `spark_move` or full suite). CSV uses **`profile_group=spark`** and **`profile_name`** matching `io_sweep.sh`; **`storage_backend`** distinguishes fio / hdfs / s3.
+
+---
+
+## v4.0.2 — S3/HDFS CSV + offline tarball (2026-03-30)
+
+### CSV
+
+- **`io_sweep.sh`** — Header and each data row include **`storage_backend`** (local runs use **`fio`**).
+- **`s3_sweep.sh`** / **`hdfs_sweep.sh`** — Produce the same column layout for **`io_compare.html`**; set **`storage_backend`** to **`s3`** or **`hdfs`**.
+
+### Web (`io_compare.html`)
+
+- Parses optional **`storage_backend`**; legacy 26-column CSVs default to **`fio`**.
+- Subtitle shows **Storage: S3 / HDFS** when applicable.
+- **`PROFILE_META`** / tab order extended for **`s3`** / **`hdfs`** groups.
+
+### Packaging
+
+- **`packaging/vendor-aws-cli.sh`** — Install AWS CLI v2 into **`vendor/aws-cli/`** (Linux x86_64).
+- **`packaging/build-offline-bundle.sh`** — Build **`dist/io-perf-offline-*.tar.gz`** (project + vendored CLI if present).
+
+---
+
 ## v4.0.1 — `io_compare.html` UX (2026-03-30)
 
 ### Improvements

@@ -362,6 +362,19 @@ footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10
 // ── State ────────────────────────────────────────────────────────────────────
 const S={a:null,b:null};
 let REPORT_PANELS_BACKUP=null;
+const HSUB_BASE=(()=>{const el=document.querySelector('.hsub');return el?el.textContent.trim():'';})();
+function storageBackendHint(rows){
+  if(!rows?.length) return '';
+  const b=[...new Set(rows.map(r=>(r.storage_backend||'fio').toLowerCase()))];
+  if(b.length===1 && b[0]==='fio') return '';
+  const map={s3:'S3',hdfs:'HDFS',fio:'local fio'};
+  return ' · Storage: '+b.map(x=>map[x]||x).join(' / ');
+}
+function applyHsub(rows){
+  const el=document.querySelector('.hsub');
+  if(!el||!HSUB_BASE) return;
+  el.textContent=HSUB_BASE+storageBackendHint(rows);
+}
 
 // ── CSV: quoted fields + header map (v4: profile_name, profile_group) ────────
 function parseCSVLine(line){
@@ -415,9 +428,11 @@ function parseCSV(txt){
         profile:g(p,'profile')||'', engine:g(p,'engine')||'', file_size:g(p,'file_size')||'',
         ts:g(p,'timestamp')||'',
         profile_name:(g(p,'profile_name')||'').trim(),
-        profile_group:(g(p,'profile_group')||'').trim()||'standard'
+        profile_group:(g(p,'profile_group')||'').trim()||'standard',
+        storage_backend:((g(p,'storage_backend')||'').trim()||'fio')
       };
     }else{
+      const hasSb=p.length>=27;
       r={
         jobs:+p[0], total_qd:+p[1],
         bw_mbs:+p[2], iops:+p[3],
@@ -430,7 +445,8 @@ function parseCSV(txt){
         io_util:+(p[18]||0), ctx_sw:+(p[19]||0),
         profile:p[20]||'', engine:p[21]||'', file_size:p[22]||'', ts:p[23]||'',
         profile_name:(p[24]||'').trim(),
-        profile_group:(p[25]||'').trim()||'standard'
+        profile_group:(p[25]||'').trim()||'standard',
+        storage_backend:hasSb?((p[26]||'fio').trim()||'fio'):'fio'
       };
     }
     r.spark_op=r.profile_name;
@@ -449,7 +465,7 @@ function isUniversalProfileCsv(rows){
   return false;
 }
 function sortGroups(gs){
-  const order=['standard','spark','database','vm','streaming','backup','container','universal','other'];
+  const order=['standard','spark','database','vm','streaming','backup','container','universal','s3','hdfs','other'];
   return [...gs].sort((a,b)=>{
     const ia=order.indexOf((a||'').toLowerCase()), ib=order.indexOf((b||'').toLowerCase());
     const sa=ia<0?999:ia, sb=ib<0?999:ib;
@@ -459,7 +475,8 @@ function sortGroups(gs){
 }
 function groupLabel(g){
   const map={standard:'Standard Sweep',spark:'Spark',database:'Database',vm:'VM / Virtualization',
-    streaming:'Streaming / Media',backup:'Backup / Archive',container:'Container / K8s',universal:'Full Universal'};
+    streaming:'Streaming / Media',backup:'Backup / Archive',container:'Container / K8s',universal:'Full Universal',
+    s3:'Object storage (S3)',hdfs:'HDFS'};
   return map[(g||'').toLowerCase()]||g||'Group';
 }
 
@@ -531,6 +548,10 @@ function setResultsVisible(show){
   const home=document.getElementById('homeInfo');
   if(res) res.style.display=show?'block':'none';
   if(home) home.style.display=show?'none':'block';
+  if(!show){
+    const h=document.querySelector('.hsub');
+    if(h && HSUB_BASE) h.textContent=HSUB_BASE;
+  }
 }
 
 // ── Tab system ────────────────────────────────────────────────────────────────
@@ -803,6 +824,7 @@ function render(){
   const nB=document.getElementById('nameB').value.trim()||'System B';
 
   initTabs();
+  applyHsub([...da,...db]);
   setResultsVisible(true);
   setTimeout(()=>switchTab(0),10);
   setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);
@@ -1071,8 +1093,12 @@ const PROFILE_META={
   backup:        {color:'#993C1D',label:'Backup',          group:'Backup',    desc:'Backup / archive'},
   container:     {color:'#3C3489',label:'Container',       group:'Container', desc:'Kubernetes / containers'},
   universal:     {color:'#534AB7',label:'Full Universal',  group:'Universal', desc:'All profile groups'},
+  s3_put:        {color:'#E1653A',label:'S3 PUT',          group:'Object storage', desc:'Parallel aws s3 cp uploads'},
+  hdfs_put:      {color:'#2D8A6E',label:'HDFS PUT',        group:'HDFS', desc:'Parallel hdfs dfs -put'},
   // Fallbacks
   standard:      {color:'#0057ff',label:'Standard',      group:'Standard',  desc:'Standard sweep'},
+  s3:            {color:'#E1653A',label:'S3',              group:'Object storage', desc:'AWS S3 API throughput'},
+  hdfs:          {color:'#2D8A6E',label:'HDFS',            group:'HDFS', desc:'Hadoop distributed FS'},
 };
 /** Fill landing-page table from PROFILE_META (sorted by group, then label) */
 function renderProfileCatalog(){
@@ -1191,6 +1217,7 @@ function renderProfileSingle(da){
   document.getElementById('reportPanels').innerHTML=panels;
   document.getElementById('pfSumGrid').innerHTML=sumCards;
   deferredDraws.forEach(fn=>fn());
+  applyHsub(da);
   setResultsVisible(true);
   setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);
   switchTab(0);
@@ -1273,6 +1300,7 @@ function renderProfileCompare(da,db){
   const sg=document.getElementById('pfSumGrid2');
   if(sg) sg.innerHTML=sumCards;
   deferredCmp.forEach(fn=>fn());
+  applyHsub([...da,...db]);
   setResultsVisible(true);
   setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);
   switchTab(0);
@@ -1288,6 +1316,7 @@ function renderSingle(da){
   // Hide compare-only tabs
   for(let i=5;i<=6;i++){const p=document.getElementById('tab'+i);if(p)p.style.display='none';}
 
+  applyHsub(da);
   setResultsVisible(true);
   setTimeout(()=>switchTab(0),10);
   setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);

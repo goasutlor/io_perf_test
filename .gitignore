@@ -3,3 +3,6 @@ Thumbs.db
 *.swp
 *~
 node_modules/
+dist/
+vendor/cache/
+vendor/aws-cli/

@@ -167,7 +167,7 @@ err()     { echo -e "  ${BRED}[FAIL]${RST}  $*"; }
 step()    { echo; echo -e "${BLD}${BMAG}▶  $*${RST}"; divider; }
 divider() { printf '%.0s─' $(seq 1 $TERM_W); echo; }
 thick()   { printf '%.0s═' $(seq 1 $TERM_W); echo; }
-pause()   { echo; read -rp "  Press [Enter] to continue..." _x 2>/dev/null || true; }
+pause()   { [[ -n "${IO_SWEEP_NO_PAUSE:-}" ]] && return; echo; read -rp "  Press [Enter] to continue..." _x 2>/dev/null || true; }
 
 draw_bar() {
   local cur=$1 tot=$2 w=$3 col="${4:-${GRN}}"
@@ -716,14 +716,14 @@ run_one_step() {
 
   local profile_str="rw=${step_rw} bs=${step_bs} iodepth=${step_qd} direct=${DIRECT_IO} dur=${DURATION}s${step_rwmix:+ rwmix=${step_rwmix}}"
 
-  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
-'     "$jobs" "$total_qd"     "$bw" "$iops" "$bmin" "$bmax" "$bstd"     "$lat_avg" "$lat_p50" "$lat_p95" "$lat_p99" "$lat_p999" "$lat_max" "$lat_stdev"     "$slat" "$clat"     "$cpu_usr" "$cpu_sys" "$io_util" "$ctx_sw"     "$profile_str" "$IO_ENGINE" "$FILE_SIZE" "$step_ts"     "$step_label" "$step_group"     >> "${CSV_FILE}"
+  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+'     "$jobs" "$total_qd"     "$bw" "$iops" "$bmin" "$bmax" "$bstd"     "$lat_avg" "$lat_p50" "$lat_p95" "$lat_p99" "$lat_p999" "$lat_max" "$lat_stdev"     "$slat" "$clat"     "$cpu_usr" "$cpu_sys" "$io_util" "$ctx_sw"     "$profile_str" "$IO_ENGINE" "$FILE_SIZE" "$step_ts"     "$step_label" "$step_group"     "fio" >> "${CSV_FILE}"
 }
 
 # ── CSV header ─────────────────────────────────────────────────────────────────
 write_csv_header() {
   cat > "${CSV_FILE}" << 'CSVHDR'
-jobs,total_qd,bw_mbs,iops,bw_min_mbs,bw_max_mbs,bw_stdev_mbs,lat_avg_ms,lat_p50_ms,lat_p95_ms,lat_p99_ms,lat_p999_ms,lat_max_ms,lat_stdev_ms,slat_avg_us,clat_avg_us,cpu_usr_pct,cpu_sys_pct,io_util_pct,ctx_switches,profile,engine,file_size,timestamp,profile_name,profile_group
+jobs,total_qd,bw_mbs,iops,bw_min_mbs,bw_max_mbs,bw_stdev_mbs,lat_avg_ms,lat_p50_ms,lat_p95_ms,lat_p99_ms,lat_p999_ms,lat_max_ms,lat_stdev_ms,slat_avg_us,clat_avg_us,cpu_usr_pct,cpu_sys_pct,io_util_pct,ctx_switches,profile,engine,file_size,timestamp,profile_name,profile_group,storage_backend
 CSVHDR
 }
 
@@ -937,4 +937,11 @@ main() {
   echo -e "  ${BGRN}${BLD}Done.${RST}  CSV: ${CSV_FILE}"; echo
 }
 
+# When sourced by storage_spark_sweep.sh (FS Spark path), skip interactive main.
+if [[ "${IO_SWEEP_LIB_ONLY:-}" == "1" ]]; then
+  if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    exit 0
+  fi
+  return 0
+fi
 main "$@"

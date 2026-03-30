@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Parallel HDFS PUT benchmark → CSV compatible with io_compare.html (storage_backend=hdfs).
+# Requires: hdfs (or hadoop) in PATH; cluster reachable; write permission on HDFS_DEST.
+set -euo pipefail
+
+HDFS_DEST="${HDFS_DEST:?Set env HDFS_DEST (e.g. /user/$USER/io-perf-sweep)}"
+MAX_JOBS="${MAX_JOBS:-16}"
+OBJ_MB="${OBJ_MB:-32}"
+PROFILE_NAME="${PROFILE_NAME:-hdfs_put}"
+PROFILE_GROUP="${PROFILE_GROUP:-hdfs}"
+CSV_FILE="${CSV_FILE:-./hdfs_sweep_results.csv}"
+RUN_ID="${RUN_ID:-$(date +%s)}"
+
+have(){ command -v "$1" >/dev/null 2>&1; }
+
+HDFS_BIN=""
+if have hdfs; then HDFS_BIN=hdfs; elif have hadoop; then HDFS_BIN=hadoop; else
+  echo "Neither 'hdfs' nor 'hadoop' found in PATH." >&2
+  exit 1
+fi
+
+dfs(){ $HDFS_BIN dfs "$@"; }
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+OBJ="$TMP/blob.bin"
+dd if=/dev/urandom of="$OBJ" bs=1M count="$OBJ_MB" status=none 2>/dev/null || dd if=/dev/zero of="$OBJ" bs=1M count="$OBJ_MB" status=none
+
+REMOTE_BASE="${HDFS_DEST%/}/${RUN_ID}"
+dfs -mkdir -p "$REMOTE_BASE" 2>/dev/null || true
+
+ENGINE="${HDFS_BIN} $(command -v "${HDFS_BIN}")"
+
+write_header() {
+  cat > "${CSV_FILE}" << 'HDR'
+jobs,total_qd,bw_mbs,iops,bw_min_mbs,bw_max_mbs,bw_stdev_mbs,lat_avg_ms,lat_p50_ms,lat_p95_ms,lat_p99_ms,lat_p999_ms,lat_max_ms,lat_stdev_ms,slat_avg_us,clat_avg_us,cpu_usr_pct,cpu_sys_pct,io_util_pct,ctx_switches,profile,engine,file_size,timestamp,profile_name,profile_group,storage_backend
+HDR
+}
+
+append_row() {
+  local jobs="$1" total_qd="$2" bw="$3" iops="$4" lat="$5" prof="$6" ts="$7"
+  local bmin="$bw" bmax="$bw" bstd="0"
+  local lat50="$lat" lat95="$lat" lat99="$lat" lat999="$lat" latmax="$lat" latstd="0"
+  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+    "$jobs" "$total_qd" "$bw" "$iops" "$bmin" "$bmax" "$bstd" \
+    "$lat" "$lat50" "$lat95" "$lat99" "$lat999" "$latmax" "$latstd" \
+    "0" "0" "0" "0" "0" "0" \
+    "$prof" "$ENGINE" "${OBJ_MB}M" "$ts" "$PROFILE_NAME" "$PROFILE_GROUP" "hdfs" >> "${CSV_FILE}"
+}
+
+write_header
+echo "HDFS sweep → ${CSV_FILE}"
+echo "  dest=${REMOTE_BASE}/  object=${OBJ_MB}MiB  jobs=1..${MAX_JOBS}"
+echo
+
+for ((j = 1; j <= MAX_JOBS; j++)); do
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
+  prof="hdfs-put parallel=${j} size=${OBJ_MB}MiB dest=${HDFS_DEST}"
+  start=$(python3 -c "import time; print(time.perf_counter())")
+  for ((i = 1; i <= j; i++)); do
+    dfs -put -f "$OBJ" "${REMOTE_BASE}/j${j}_${i}.bin" &
+  done
+  wait || true
+  end=$(python3 -c "import time; print(time.perf_counter())")
+  elapsed=$(python3 -c "print(max(float('$end')-float('$start'), 1e-9))")
+  bw=$(python3 -c "mb=float($j)*float($OBJ_MB)/float($elapsed); print(f'{mb:.6f}')")
+  iops=$(python3 -c "print(int(float($j)/float($elapsed)+0.5))")
+  lat=$(python3 -c "ms=float($elapsed)*1000.0/float(max($j,1)); print(f'{ms:.6f}')")
+  append_row "$j" "$j" "$bw" "$iops" "$lat" "$prof" "$ts"
+  echo "  jobs=$j  ${bw} MB/s  iops≈$iops  avg_op≈${lat} ms"
+done
+
+echo
+echo "Done. Open io_compare.html and upload ${CSV_FILE}"

@@ -27,6 +27,43 @@ flowchart LR
 2. **Output** — CSV under `.../io_sweep_<timestamp>/` (or group-specific prefix) including `profile_name` and `profile_group` for universal runs.  
 3. **Web report** — Open `io_compare.html` in a browser. Use **Single System** to analyze one CSV, or **Compare 2 Systems** for two. Universal CSVs are detected automatically; tabs match **`profile_group`**.
 
+### Unified Spark storage sweep (recommended for cross-storage comparison)
+
+This flow is intentionally **2-step**:
+
+1. **Select Storage Type** first: `Filesystem` / `HDFS` / `Object (S3)`
+2. **Select Spark IO Profile** next: `spark_read`, `spark_write`, `spark_shuffle`, `spark_head`, `spark_move` (or full suite)
+
+For **HDFS** and **S3**, the script focuses on **Spark-like workload behavior** (API-level GET/PUT/HEAD/CAT mixes), not non-Spark profile families.
+
+**`storage_spark_sweep.sh`** — one entry script:
+
+1. Choose **Filesystem (fio)** — same Spark profiles as **`io_sweep.sh`** mode 7 (`spark_read` … `spark_move`, or full suite), via `fio` on a path you pick.  
+2. Choose **HDFS** — Spark-*like* API mix (`-get`/`-put`/`-cat`, small vs large objects) per profile name.  
+3. Choose **S3** — Spark-*like* API mix (GET/PUT/`head-object`) per profile name.
+
+Then pick **one Spark profile** or **full suite** (all five). CSV uses **`profile_group=spark`** and **`profile_name`** as in the fio catalog (`spark_read`, …) so **`io_compare.html`** groups results under the **Spark** tab; **`storage_backend`** is **`fio`** / **`hdfs`** / **`s3`**.
+
+```bash
+chmod +x storage_spark_sweep.sh
+./storage_spark_sweep.sh
+```
+
+### S3 / HDFS simple sweeps (optional)
+
+| Script | Purpose | Env / notes |
+|--------|---------|-------------|
+| **`s3_sweep.sh`** | Parallel PUT-only sweep → **`s3_sweep_results.csv`** (`profile_group`=`s3`) | **`S3_BUCKET`**, `S3_PREFIX`, `MAX_JOBS`, `OBJ_MB` |
+| **`hdfs_sweep.sh`** | Parallel `-put` sweep → **`hdfs_sweep_results.csv`** (`profile_group`=`hdfs`) | **`HDFS_DEST`**, `MAX_JOBS`, `OBJ_MB` |
+
+CSV columns match **`io_sweep.sh`** (including **`storage_backend`**). Upload into **`io_compare.html`** as usual.
+
+### Offline bundle (AWS CLI on air-gapped Linux hosts)
+
+1. On a connected **Linux x86_64** machine: `bash packaging/vendor-aws-cli.sh` (downloads AWS CLI v2 into `vendor/aws-cli/`).  
+2. `bash packaging/build-offline-bundle.sh` → **`dist/io-perf-offline-*.tar.gz`**.  
+3. On the target: extract, then **`source packaging/env.sh`** and run **`s3_sweep.sh`** (Hadoop clients for **`hdfs_sweep.sh`** are expected to exist on the host; not bundled).
+
 ---
 
 ## IO workload profiles (full catalog)

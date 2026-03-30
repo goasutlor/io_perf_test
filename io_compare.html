@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IO Storage Comparison Report</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;800&display=swap');
+:root{
+  --bg:#f4f6fb;--bg2:#ffffff;--bg3:#eef1f8;--bg4:#e8ecf5;
+  --border:rgba(30,40,80,0.09);--border2:rgba(30,40,80,0.16);
+  --text:#1a1f36;--muted:#7c85a8;--muted2:#a8b0cc;
+  --a:#0057ff;--a2:rgba(0,87,255,0.08);--a3:rgba(0,87,255,0.15);
+  --b:#e0284f;--b2:rgba(224,40,79,0.08);--b3:rgba(224,40,79,0.15);
+  --green:#0a7a4b;--green2:rgba(10,122,75,0.10);
+  --amber:#a05c00;--amber2:rgba(160,92,0,0.10);
+  --red2:rgba(224,40,79,0.10);
+  --mono:'JetBrains Mono',monospace;--sans:'Syne',system-ui,sans-serif;
+  --r:10px;--r2:16px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,87,255,0.035)1px,transparent 1px),
+  linear-gradient(90deg,rgba(0,87,255,0.035)1px,transparent 1px);background-size:44px 44px}
+.wrap{position:relative;z-index:1;max-width:1320px;margin:0 auto;padding:32px 20px}
+
+/* Header */
+header{margin-bottom:36px}
+.htag{font-family:var(--mono);font-size:10px;letter-spacing:.15em;color:var(--a);
+      text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.htag::before{content:'';display:block;width:20px;height:1px;background:var(--a)}
+h1{font-size:clamp(26px,4vw,44px);font-weight:800;line-height:1.1;
+   background:linear-gradient(135deg,#0a1240 30%,var(--a));
+   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px}
+.hsub{color:var(--muted);font-size:12px;font-family:var(--mono)}
+
+/* Upload */
+.upsec{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
+@media(max-width:600px){.upsec{grid-template-columns:1fr}}
+.upcard{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);
+        padding:20px;position:relative;overflow:hidden;transition:box-shadow .2s}
+.upcard::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.upcard.sa::before{background:var(--a)}.upcard.sb::before{background:var(--b)}
+.syslbl{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+        margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.sa .syslbl{color:var(--a)}.sb .syslbl{color:var(--b)}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sa .dot{background:var(--a)}.sb .dot{background:var(--b)}
+.sname{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+       padding:7px 11px;color:var(--text);font-family:var(--sans);font-size:13px;
+       margin-bottom:10px;outline:none;transition:border-color .2s}
+.sname:focus{border-color:var(--border2)}
+.dz{border:1.5px dashed var(--border2);border-radius:8px;padding:16px;text-align:center;
+    cursor:pointer;transition:all .2s;position:relative}
+.dz:hover,.dz.drag{border-color:var(--a);background:var(--a2)}
+.sb .dz:hover,.sb .dz.drag{border-color:var(--b);background:var(--b2)}
+.dzicon{font-size:20px;margin-bottom:4px}
+.dztxt{font-size:11px;color:var(--muted);line-height:1.5}
+.dzfn{font-family:var(--mono);font-size:10px;margin-top:6px;padding:3px 8px;
+      border-radius:5px;display:inline-block}
+.sa .dzfn{background:var(--a2);color:var(--a)}.sb .dzfn{background:var(--b2);color:var(--b)}
+input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+/* Run button */
+.runwrap{text-align:center;margin-bottom:36px}
+.btnrun{background:transparent;border:1.5px solid var(--a);color:var(--a);
+        font-family:var(--mono);font-size:12px;letter-spacing:.1em;
+        padding:11px 36px;border-radius:8px;cursor:pointer;transition:all .2s;
+        text-transform:uppercase;position:relative;overflow:hidden}
+.btnrun::before{content:'';position:absolute;inset:0;background:var(--a);
+                transform:translateX(-100%);transition:transform .22s;z-index:0}
+.btnrun:hover{color:#fff}.btnrun:hover::before{transform:translateX(0)}
+.btnrun span{position:relative;z-index:1}
+.btnrun:disabled{opacity:.35;cursor:not-allowed}.btnrun:disabled::before{display:none}
+
+/* Tabs */
+#results{display:none}
+.tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border2);padding-bottom:0}
+.tab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+     padding:8px 16px;border-radius:8px 8px 0 0;border:1px solid transparent;
+     cursor:pointer;color:var(--muted);transition:all .15s;margin-bottom:-1px}
+.tab:hover{color:var(--text);background:var(--bg3)}
+.tab.active{color:var(--a);border-color:var(--border2);border-bottom-color:var(--bg2);
+            background:var(--bg2);font-weight:700}
+.tabpanel{display:none}.tabpanel.active{display:block}
+
+/* Cards */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:20px}
+.cardtitle{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;
+           letter-spacing:.08em;font-family:var(--mono);margin-bottom:14px;
+           display:flex;align-items:center;gap:8px}
+.cardtitle::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* Summary grid */
+.sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:24px}
+.sumcard{background:var(--bg3);border-radius:var(--r);padding:14px 16px}
+.sumlbl{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;
+        letter-spacing:.08em;margin-bottom:8px}
+.sumvals{display:flex;flex-direction:column;gap:3px}
+.sumrow{display:flex;justify-content:space-between;align-items:baseline}
+.sumsys{font-size:10px;color:var(--muted);font-family:var(--mono)}
+.sumval{font-size:17px;font-weight:700;font-family:var(--mono)}
+.ca{color:var(--a)}.cb{color:var(--b)}
+.sumwin{font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;
+        margin-top:6px;padding:2px 7px;border-radius:4px;display:inline-block}
+.wina{background:var(--a2);color:var(--a)}.winb{background:var(--b2);color:var(--b)}
+.wintie{background:var(--border);color:var(--muted)}
+
+/* Chart grid */
+.cgrid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
+.cgrid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px}
+@media(max-width:900px){.cgrid2,.cgrid3{grid-template-columns:1fr}}
+.ccard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:18px}
+.chdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:6px}
+.ctitle{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.cleg{display:flex;gap:10px;flex-wrap:wrap}
+.legitem{display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.legdot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+canvas{display:block;width:100%!important}
+
+/* Profile comparison */
+.profgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
+@media(max-width:640px){.profgrid{grid-template-columns:1fr}}
+.profcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:18px}
+.profrow{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.profrow:last-child{border-bottom:none}
+.prlbl{color:var(--muted);font-family:var(--mono);font-size:11px}
+.prval{font-weight:600;font-family:var(--mono);font-size:11px}
+
+/* Analysis */
+.anlgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
+@media(max-width:640px){.anlgrid{grid-template-columns:1fr}}
+.anlsec h3{font-size:13px;font-weight:700;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.sa-side h3{color:var(--a)}.sb-side h3{color:var(--b)}
+.anlrow{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
+.anlrow:last-child{border-bottom:none}
+.arlbl{color:var(--muted);font-family:var(--mono);font-size:11px}
+.arval{font-weight:700;font-family:var(--mono);font-size:11px}
+.better{color:var(--green)}.worse{color:var(--b)}.neutral{color:var(--text)}
+.verdict{grid-column:1/-1;background:var(--bg3);border-radius:var(--r);padding:18px;border-left:3px solid var(--amber)}
+.verdict h3{font-size:11px;color:var(--amber);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
+.vtext{font-size:13px;line-height:1.85;color:var(--text)}
+.vtext strong{color:var(--a)}.vtext em{color:var(--b);font-style:normal;font-weight:700}
+
+/* Full table */
+.tcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);
+       padding:18px;margin-bottom:24px;overflow-x:auto}
+.ttitle{font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;
+        letter-spacing:.07em;margin-bottom:14px}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+th{color:var(--muted);font-weight:500;padding:7px 10px;text-align:right;
+   border-bottom:1px solid var(--border);font-size:9px;letter-spacing:.06em;
+   text-transform:uppercase;white-space:nowrap;background:var(--bg3)}
+th:first-child{text-align:left}
+td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+td:first-child{text-align:left;font-weight:600}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg3)}
+.tda{color:var(--a)}.tdb{color:var(--b)}
+.bsm{font-size:9px;padding:1px 5px;border-radius:3px;margin-left:3px;vertical-align:middle;font-weight:700}
+.bg-grn{background:var(--green2);color:var(--green)}
+.bg-red{background:var(--red2);color:var(--b)}
+.bg-amb{background:var(--amber2);color:var(--amber)}
+.bg-neu{background:var(--border);color:var(--muted)}
+
+/* Error */
+.errmsg{background:var(--red2);border:1px solid var(--b3);border-radius:8px;
+        padding:10px 14px;font-family:var(--mono);font-size:11px;color:var(--b);
+        margin-bottom:14px;display:none}
+footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10px;
+       letter-spacing:.07em;padding-top:20px;border-top:1px solid var(--border);margin-top:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="htag">Storage Performance Analysis</div>
+  <h1>IO Comparison<br>Report</h1>
+  <div class="hsub">Upload sweep_results.csv from two systems → instant comparison charts, latency distribution &amp; analysis</div>
+</header>
+
+<div class="errmsg" id="errMsg"></div>
+
+<div class="upsec">
+  <div class="upcard sa">
+    <div class="syslbl"><span class="dot"></span><span id="lblA">System A</span></div>
+    <input type="text" class="sname" id="nameA" placeholder="e.g. NVMe-Node01 / Local SSD">
+    <div class="dz" id="dropA">
+      <input type="file" accept=".csv" id="fileA">
+      <div class="dzicon">📂</div>
+      <div class="dztxt">Drop <strong>sweep_results.csv</strong><br>or click to browse</div>
+      <div class="dzfn" id="fnA" style="display:none"></div>
+    </div>
+  </div>
+  <div class="upcard sb">
+    <div class="syslbl"><span class="dot"></span><span id="lblB">System B</span></div>
+    <input type="text" class="sname" id="nameB" placeholder="e.g. iSCSI-SAN / NFS-Filer">
+    <div class="dz" id="dropB">
+      <input type="file" accept=".csv" id="fileB">
+      <div class="dzicon">📂</div>
+      <div class="dztxt">Drop <strong>sweep_results.csv</strong><br>or click to browse</div>
+      <div class="dzfn" id="fnB" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<div class="runwrap">
+  <button class="btnrun" id="btnRun" disabled><span>⚡ Generate Comparison Report</span></button>
+</div>
+
+<div id="results">
+  <div class="tabs" id="tabBar"></div>
+
+  <!-- Tab 0: Overview -->
+  <div class="tabpanel" id="tab0">
+    <div class="sumgrid" id="sumGrid"></div>
+    <div class="cgrid2">
+      <div class="ccard"><div class="chdr"><div class="ctitle">IOPS vs Jobs</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la0"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb0"></span></div></div></div><canvas id="c_iops" height="200"></canvas></div>
+      <div class="ccard"><div class="chdr"><div class="ctitle">Throughput MB/s vs Jobs</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la1"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb1"></span></div></div></div><canvas id="c_bw" height="200"></canvas></div>
+    </div>
+    <div class="cgrid2">
+      <div class="ccard"><div class="chdr"><div class="ctitle">Avg Latency ms</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la2"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb2"></span></div></div></div><canvas id="c_lat" height="200"></canvas></div>
+      <div class="ccard"><div class="chdr"><div class="ctitle">P99 Latency ms</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la3"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb3"></span></div></div></div><canvas id="c_p99" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Tab 1: Latency Deep Dive -->
+  <div class="tabpanel" id="tab1">
+    <div class="cgrid2">
+      <div class="ccard"><div class="chdr"><div class="ctitle">Latency Percentiles — <span class="dyn-a">System A</span></div><div class="cleg"><div class="legitem"><div class="legdot" style="background:#3B8BD4"></div>Avg</div><div class="legitem"><div class="legdot" style="background:#EF9F27;border:1px dashed #EF9F27"></div>P95</div><div class="legitem"><div class="legdot" style="background:#E24B4A;border:1px dashed"></div>P99</div><div class="legitem"><div class="legdot" style="background:#A32D2D"></div>P99.9</div></div></div><canvas id="c_latA" height="220"></canvas></div>
+      <div class="ccard"><div class="chdr"><div class="ctitle">Latency Percentiles — <span class="dyn-b">System B</span></div><div class="cleg"><div class="legitem"><div class="legdot" style="background:#3B8BD4"></div>Avg</div><div class="legitem"><div class="legdot" style="background:#EF9F27"></div>P95</div><div class="legitem"><div class="legdot" style="background:#E24B4A"></div>P99</div><div class="legitem"><div class="legdot" style="background:#A32D2D"></div>P99.9</div></div></div><canvas id="c_latB" height="220"></canvas></div>
+    </div>
+    <div class="cgrid2">
+      <div class="ccard"><div class="chdr"><div class="ctitle">P99 vs P99.9 — Tail Latency Comparison</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_tail"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_tail"></span></div></div></div><canvas id="c_tail" height="200"></canvas></div>
+      <div class="ccard"><div class="chdr"><div class="ctitle">Max Latency (worst case) ms</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_max"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_max"></span></div></div></div><canvas id="c_latmax" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Tab 2: Throughput Deep Dive -->
+  <div class="tabpanel" id="tab2">
+    <div class="cgrid3">
+      <div class="ccard"><div class="chdr"><div class="ctitle">BW Min vs Max (stability)</div></div><canvas id="c_bwrange" height="200"></canvas></div>
+      <div class="ccard"><div class="chdr"><div class="ctitle">BW Stdev (consistency)</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_bwstd"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_bwstd"></span></div></div></div><canvas id="c_bwstd" height="200"></canvas></div>
+      <div class="ccard"><div class="chdr"><div class="ctitle">IOPS Efficiency (IOPS per job)</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_eff"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_eff"></span></div></div></div><canvas id="c_eff" height="200"></canvas></div>
+    </div>
+    <div class="cgrid2">
+      <div class="ccard"><div class="chdr"><div class="ctitle">Total QD vs IOPS (saturation curve)</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_qd"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_qd"></span></div></div></div><canvas id="c_qd" height="200"></canvas></div>
+      <div class="ccard"><div class="chdr"><div class="ctitle">Latency × IOPS Score (higher = better)</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_score"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_score"></span></div></div></div><canvas id="c_score" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Tab 3: System Resources -->
+  <div class="tabpanel" id="tab3">
+    <div class="cgrid2">
+      <div class="ccard"><div class="chdr"><div class="ctitle">CPU User% vs Jobs</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_cu"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_cu"></span></div></div></div><canvas id="c_cu" height="200"></canvas></div>
+      <div class="ccard"><div class="chdr"><div class="ctitle">CPU Sys% vs Jobs</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_cs"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_cs"></span></div></div></div><canvas id="c_cs" height="200"></canvas></div>
+    </div>
+    <div class="cgrid2">
+      <div class="ccard"><div class="chdr"><div class="ctitle">Disk Utilization% vs Jobs</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_util"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_util"></span></div></div></div><canvas id="c_util" height="200"></canvas></div>
+      <div class="ccard"><div class="chdr"><div class="ctitle">Context Switches vs Jobs</div><div class="cleg"><div class="legitem"><div class="legdot" style="background:var(--a)"></div><span id="la_ctx"></span></div><div class="legitem"><div class="legdot" style="background:var(--b)"></div><span id="lb_ctx"></span></div></div></div><canvas id="c_ctx" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Tab 4: IO Profile -->
+  <div class="tabpanel" id="tab4">
+    <div class="profgrid" id="profCards"></div>
+    <div class="card" style="margin-bottom:24px">
+      <div class="cardtitle">IO Profile Comparison</div>
+      <div id="profCmp"></div>
+    </div>
+  </div>
+
+  <!-- Tab 5: Analysis -->
+  <div class="tabpanel" id="tab5">
+    <div class="anlgrid" id="anlGrid"></div>
+  </div>
+
+  <!-- Tab 6: Full Table -->
+  <div class="tabpanel" id="tab6">
+    <div class="tcard">
+      <div class="ttitle">Full Results — All Metrics Side by Side</div>
+      <table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<footer>io_compare.html &nbsp;·&nbsp; self-contained, no external dependencies &nbsp;·&nbsp; works offline</footer>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+const S={a:null,b:null};
+
+// ── CSV Parser (v2 schema) ────────────────────────────────────────────────────
+function parseCSV(txt){
+  const rows=[];
+  const lines=txt.trim().split('\n').map(l=>l.trim()).filter(Boolean);
+  let hdr=null;
+  for(const line of lines){
+    const p=line.split(',').map(s=>s.trim());
+    if(p[0]==='jobs'||isNaN(+p[0])){
+      if(!hdr) hdr=p;
+      continue;
+    }
+    // Support both v1 (7 cols) and v2 (24 cols)
+    const r={
+      jobs:+p[0], total_qd:+p[1],
+      bw_mbs:+p[2], iops:+p[3],
+      bw_min:+(p[4]||0), bw_max:+(p[5]||0), bw_stdev:+(p[6]||0),
+      lat_avg:+p[7], lat_p50:+(p[8]||0), lat_p95:+(p[9]||0),
+      lat_p99:+(p[10]||p[5]||0), lat_p999:+(p[11]||p[6]||0),
+      lat_max:+(p[12]||0), lat_stdev:+(p[13]||0),
+      slat:+(p[14]||0), clat:+(p[15]||0),
+      cpu_usr:+(p[16]||0), cpu_sys:+(p[17]||0),
+      io_util:+(p[18]||0), ctx_sw:+(p[19]||0),
+      profile:p[20]||'', engine:p[21]||'', file_size:p[22]||'', ts:p[23]||''
+    };
+    if(!isNaN(r.jobs)) rows.push(r);
+  }
+  return rows.sort((a,b)=>a.jobs-b.jobs);
+}
+
+// ── File setup ────────────────────────────────────────────────────────────────
+function setupDrop(dId,fId,fnId,key){
+  const dz=document.getElementById(dId);
+  const inp=document.getElementById(fId);
+  const fn=document.getElementById(fnId);
+  const load=file=>{
+    if(!file)return;
+    const r=new FileReader();
+    r.onload=e=>{
+      S[key]=parseCSV(e.target.result);
+      fn.textContent=file.name; fn.style.display='inline-block';
+      dz.querySelector('.dztxt').style.opacity='.4';
+      checkReady();
+    };
+    r.readAsText(file);
+  };
+  inp.addEventListener('change',e=>load(e.target.files[0]));
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag')});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');load(e.dataTransfer.files[0])});
+}
+setupDrop('dropA','fileA','fnA','a');
+setupDrop('dropB','fileB','fnB','b');
+
+// Live name update — updates upload card label + dynamic chart titles as user types
+function updateNames(){
+  const nA=document.getElementById('nameA').value.trim()||'System A';
+  const nB=document.getElementById('nameB').value.trim()||'System B';
+  // Upload card labels
+  document.getElementById('lblA').textContent=nA;
+  document.getElementById('lblB').textContent=nB;
+  // Tab 1 chart titles
+  document.querySelectorAll('.dyn-a').forEach(el=>el.textContent=nA);
+  document.querySelectorAll('.dyn-b').forEach(el=>el.textContent=nB);
+}
+document.getElementById('nameA').addEventListener('input',updateNames);
+document.getElementById('nameB').addEventListener('input',updateNames);
+function checkReady(){document.getElementById('btnRun').disabled=!(S.a?.length&&S.b?.length)}
+
+// ── Tab system ────────────────────────────────────────────────────────────────
+const TABS=['Overview','Latency Dist.','Throughput','Resources','IO Profile','Analysis','Full Table'];
+function initTabs(){
+  const bar=document.getElementById('tabBar');
+  bar.innerHTML=TABS.map((t,i)=>`<button class="tab${i===0?' active':''}" onclick="switchTab(${i})">${t}</button>`).join('');
+}
+function switchTab(i){
+  document.querySelectorAll('.tab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  document.querySelectorAll('.tabpanel').forEach((p,j)=>p.classList.toggle('active',i===j));
+}
+
+// ── Canvas chart engine ───────────────────────────────────────────────────────
+function drawChart(id,datasets,opts={}){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const dpr=window.devicePixelRatio||1;
+  const W=el.parentElement.clientWidth||500;
+  const H=parseInt(el.getAttribute('height'))||200;
+  el.width=W*dpr; el.height=H*dpr;
+  el.style.width=W+'px'; el.style.height=H+'px';
+  const ctx=el.getContext('2d'); ctx.scale(dpr,dpr);
+  const P={t:18,r:20,b:42,l:60};
+  const cW=W-P.l-P.r, cH=H-P.t-P.b;
+
+  let allY=[];
+  datasets.forEach(d=>{
+    if(opts.scatter) d.data.forEach(p=>allY.push(p.y));
+    else d.data.forEach(v=>allY.push(v));
+  });
+  const minY=0, maxY=(Math.max(...allY)*1.18)||1;
+  const n=opts.labels?.length||Math.max(...datasets.map(d=>d.data.length));
+  const labels=opts.labels||Array.from({length:n},(_,i)=>i+1);
+
+  // Grid
+  ctx.font=`10px JetBrains Mono,monospace`;
+  for(let i=0;i<=5;i++){
+    const v=maxY*i/5, y=P.t+cH-cH*i/5;
+    ctx.strokeStyle='rgba(30,40,80,0.07)'; ctx.lineWidth=.7;
+    ctx.beginPath(); ctx.moveTo(P.l,y); ctx.lineTo(P.l+cW,y); ctx.stroke();
+    const lbl=v>=1e6?(v/1e6).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'K':v.toFixed(v<10?2:0);
+    ctx.fillStyle='#7c85a8'; ctx.textAlign='right';
+    ctx.fillText(opts.yUnit?lbl+opts.yUnit:lbl,P.l-5,y+3.5);
+  }
+  for(let i=0;i<n;i++){
+    const x=P.l+cW*i/Math.max(n-1,1);
+    ctx.strokeStyle='rgba(30,40,80,0.05)'; ctx.lineWidth=.4;
+    ctx.beginPath(); ctx.moveTo(x,P.t); ctx.lineTo(x,P.t+cH); ctx.stroke();
+    ctx.fillStyle='#7c85a8'; ctx.textAlign='center'; ctx.font='10px JetBrains Mono,monospace';
+    ctx.fillText(String(labels[i]),x,P.t+cH+15);
+  }
+  if(opts.yLabel){
+    ctx.save(); ctx.translate(11,P.t+cH/2); ctx.rotate(-Math.PI/2);
+    ctx.fillStyle='#a8b0cc'; ctx.textAlign='center'; ctx.font='9px JetBrains Mono,monospace';
+    ctx.fillText(opts.yLabel,0,0); ctx.restore();
+  }
+
+  datasets.forEach(ds=>{
+    const data=ds.data;
+    ctx.strokeStyle=ds.color; ctx.lineWidth=ds.lw||2.5;
+    if(ds.dash) ctx.setLineDash(ds.dash); else ctx.setLineDash([]);
+    ctx.lineJoin='round'; ctx.lineCap='round';
+
+    const toXY=(v,i)=>{
+      if(opts.scatter){
+        const xs=data.map(p=>p.x), minX=Math.min(...xs), maxX=Math.max(...xs)||1;
+        return{x:P.l+cW*(v.x-minX)/(maxX-minX),y:P.t+cH-cH*(v.y-minY)/(maxY-minY)};
+      }
+      return{x:P.l+cW*i/Math.max(n-1,1),y:P.t+cH-cH*(v-minY)/(maxY-minY)};
+    };
+
+    // Fill area
+    if(ds.fill){
+      ctx.beginPath();
+      data.forEach((v,i)=>{const p=toXY(v,i);i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)});
+      ctx.lineTo(P.l+cW*(n-1)/Math.max(n-1,1),P.t+cH);
+      ctx.lineTo(P.l,P.t+cH); ctx.closePath();
+      ctx.fillStyle=ds.fill; ctx.fill();
+    }
+
+    if(!opts.scatter){
+      ctx.beginPath();
+      data.forEach((v,i)=>{const p=toXY(v,i);i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)});
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    data.forEach((v,i)=>{
+      const p=toXY(v,i), val=opts.scatter?v.y:v;
+      ctx.beginPath(); ctx.arc(p.x,p.y,ds.pr||4,0,Math.PI*2);
+      ctx.fillStyle=ds.pf||ds.color; ctx.fill();
+      if(opts.scatter){ctx.strokeStyle='#f4f6fb';ctx.lineWidth=1.5;ctx.stroke();}
+      ctx.fillStyle='rgba(26,31,54,0.7)'; ctx.font='9px JetBrains Mono,monospace'; ctx.textAlign='center';
+      const lbl=val>=1e6?(val/1e6).toFixed(2)+'M':val>=1000?(val/1000).toFixed(0)+'K':val.toFixed(val<10?2:0);
+      ctx.fillText(lbl,p.x,p.y-9);
+    });
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const CS={a:'#0057ff',b:'#e0284f'};
+const fa='rgba(0,87,255,0.08)', fb='rgba(224,40,79,0.08)';
+function fmtN(v,u=''){ return v>=1e6?(v/1e6).toFixed(2)+'M'+u:v>=1000?(v/1000).toFixed(1)+'K'+u:v.toFixed(v<10?2:0)+u; }
+function pct(a,b){ return b?((a-b)/b*100).toFixed(1):'—'; }
+function findSweet(rows){
+  const ml=Math.min(...rows.map(r=>r.lat_avg));
+  let best=rows[0];
+  rows.forEach(r=>{if(r.lat_avg<=ml*2&&r.iops>=best.iops)best=r;});
+  return best;
+}
+function alignByJobs(da,db){
+  const jobs=[...new Set([...da.map(r=>r.jobs),...db.map(r=>r.jobs)])].sort((a,b)=>a-b);
+  const ga=j=>da.find(r=>r.jobs===j)||null;
+  const gb=j=>db.find(r=>r.jobs===j)||null;
+  return{jobs,ga,gb};
+}
+function setLegends(ids,nA,nB){
+  ids.forEach(id=>{
+    const a=document.getElementById('la'+id),b=document.getElementById('lb'+id);
+    if(a)a.textContent=nA; if(b)b.textContent=nB;
+  });
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
+document.getElementById('btnRun').addEventListener('click',render);
+
+function render(){
+  const err=document.getElementById('errMsg');
+  err.style.display='none';
+  const da=S.a,db=S.b;
+  if(!da?.length||!db?.length){err.textContent='No valid data loaded.';err.style.display='block';return;}
+
+  const nA=document.getElementById('nameA').value.trim()||'System A';
+  const nB=document.getElementById('nameB').value.trim()||'System B';
+
+  initTabs();
+  document.getElementById('results').style.display='block';
+  setTimeout(()=>switchTab(0),10);
+  setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),50);
+
+  const{jobs,ga,gb}=alignByJobs(da,db);
+  const lbl=jobs.map(j=>j+' job'+(j>1?'s':''));
+
+  const gArr=(fn)=>jobs.map(j=>{const r=ga(j);return r?fn(r):0});
+  const gBrr=(fn)=>jobs.map(j=>{const r=gb(j);return r?fn(r):0});
+
+  const iopsA=gArr(r=>r.iops), iopsB=gBrr(r=>r.iops);
+  const bwA=gArr(r=>r.bw_mbs), bwB=gBrr(r=>r.bw_mbs);
+  const latA=gArr(r=>r.lat_avg), latB=gBrr(r=>r.lat_avg);
+  const p99A=gArr(r=>r.lat_p99), p99B=gBrr(r=>r.lat_p99);
+  const p95A=gArr(r=>r.lat_p95), p95B=gBrr(r=>r.lat_p95);
+  const p999A=gArr(r=>r.lat_p999), p999B=gBrr(r=>r.lat_p999);
+  const latmaxA=gArr(r=>r.lat_max), latmaxB=gBrr(r=>r.lat_max);
+  const bwstdA=gArr(r=>r.bw_stdev), bwstdB=gBrr(r=>r.bw_stdev);
+  const bwminA=gArr(r=>r.bw_min), bwminB=gBrr(r=>r.bw_min);
+  const bwmaxA=gArr(r=>r.bw_max), bwmaxB=gBrr(r=>r.bw_max);
+  const cuA=gArr(r=>r.cpu_usr), cuB=gBrr(r=>r.cpu_usr);
+  const csA=gArr(r=>r.cpu_sys), csB=gBrr(r=>r.cpu_sys);
+  const utilA=gArr(r=>r.io_util), utilB=gBrr(r=>r.io_util);
+  const ctxA=gArr(r=>r.ctx_sw), ctxB=gBrr(r=>r.ctx_sw);
+  const effA=jobs.map((j,i)=>iopsA[i]?+(iopsA[i]/j).toFixed(0):0);
+  const effB=jobs.map((j,i)=>iopsB[i]?+(iopsB[i]/j).toFixed(0):0);
+  // Score = IOPS / (lat_avg * lat_p99) × 1000 — higher is better
+  const scoreA=jobs.map((_,i)=>latA[i]&&p99A[i]?+(iopsA[i]/(latA[i]*p99A[i])*1000).toFixed(1):0);
+  const scoreB=jobs.map((_,i)=>latB[i]&&p99B[i]?+(iopsB[i]/(latB[i]*p99B[i])*1000).toFixed(1):0);
+
+  const qdA=jobs.map((j,i)=>{const r=ga(j);return{x:r?r.total_qd:j*32,y:iopsA[i]}});
+  const qdB=jobs.map((j,i)=>{const r=gb(j);return{x:r?r.total_qd:j*32,y:iopsB[i]}});
+
+  setLegends(['0','1','2','3'],nA,nB);
+  setLegends(['_tail','_max','_bwstd','_eff','_qd','_score','_cu','_cs','_util','_ctx'],nA,nB);
+
+  // ── Tab 0: Overview ─────────────────────────────────────────────────────────
+  const sweetA=findSweet(da), sweetB=findSweet(db);
+  const pkIopsA=Math.max(...da.map(r=>r.iops)), pkIopsB=Math.max(...db.map(r=>r.iops));
+  const pkBwA=Math.max(...da.map(r=>r.bw_mbs)), pkBwB=Math.max(...db.map(r=>r.bw_mbs));
+  const minLatA=Math.min(...da.map(r=>r.lat_avg)), minLatB=Math.min(...db.map(r=>r.lat_avg));
+  const minP99A=Math.min(...da.map(r=>r.lat_p99)), minP99B=Math.min(...db.map(r=>r.lat_p99));
+
+  const sumCards=[
+    {lbl:'Peak IOPS',a:fmtN(pkIopsA),b:fmtN(pkIopsB),rA:pkIopsA,rB:pkIopsB,hi:'better'},
+    {lbl:'Peak BW',a:fmtN(pkBwA,'MB/s'),b:fmtN(pkBwB,'MB/s'),rA:pkBwA,rB:pkBwB,hi:'better'},
+    {lbl:'Min Avg Lat',a:minLatA.toFixed(3)+'ms',b:minLatB.toFixed(3)+'ms',rA:minLatA,rB:minLatB,hi:'worse'},
+    {lbl:'Min P99 Lat',a:minP99A.toFixed(3)+'ms',b:minP99B.toFixed(3)+'ms',rA:minP99A,rB:minP99B,hi:'worse'},
+    {lbl:'Sweet Spot',a:sweetA.jobs+' jobs',b:sweetB.jobs+' jobs',neutral:true},
+    {lbl:'IOPS@Sweet',a:fmtN(sweetA.iops),b:fmtN(sweetB.iops),rA:sweetA.iops,rB:sweetB.iops,hi:'better'},
+    {lbl:'Lat@Sweet',a:sweetA.lat_avg.toFixed(3)+'ms',b:sweetB.lat_avg.toFixed(3)+'ms',rA:sweetA.lat_avg,rB:sweetB.lat_avg,hi:'worse'},
+  ];
+  document.getElementById('sumGrid').innerHTML=sumCards.map(c=>{
+    let wt='wintie',wl='—';
+    if(!c.neutral){
+      const aw=c.hi==='better'?c.rA>c.rB:c.rA<c.rB;
+      const bw=c.hi==='better'?c.rB>c.rA:c.rB<c.rA;
+      if(aw){wt='wina';wl=nA+' wins';}else if(bw){wt='winb';wl=nB+' wins';}else wl='Tie';
+    }
+    return`<div class="sumcard"><div class="sumlbl">${c.lbl}</div><div class="sumvals"><div class="sumrow"><span class="sumsys">${nA}</span><span class="sumval ca">${c.a}</span></div><div class="sumrow"><span class="sumsys">${nB}</span><span class="sumval cb">${c.b}</span></div></div><span class="sumwin ${wt}">${wl}</span></div>`;
+  }).join('');
+
+  const co={labels:lbl};
+  setTimeout(()=>{
+    drawChart('c_iops',[{data:iopsA,color:CS.a,fill:fa},{data:iopsB,color:CS.b,fill:fb,dash:[5,3]}],co);
+    drawChart('c_bw',[{data:bwA,color:CS.a,fill:fa},{data:bwB,color:CS.b,fill:fb,dash:[5,3]}],co);
+    drawChart('c_lat',[{data:latA,color:CS.a,fill:fa},{data:latB,color:CS.b,fill:fb,dash:[5,3]}],{...co,yUnit:'ms'});
+    drawChart('c_p99',[{data:p99A,color:CS.a,fill:fa},{data:p99B,color:CS.b,fill:fb,dash:[5,3]}],{...co,yUnit:'ms'});
+    // Tab 1
+    drawChart('c_latA',[
+      {data:latA,color:'#3B8BD4',lw:2},{data:p95A,color:'#EF9F27',lw:1.5,dash:[5,3]},
+      {data:p99A,color:'#E24B4A',lw:1.5,dash:[3,3]},{data:p999A,color:'#A32D2D',lw:1,dash:[2,4]}
+    ],{...co,yUnit:'ms'});
+    drawChart('c_latB',[
+      {data:latB,color:'#3B8BD4',lw:2},{data:p95B,color:'#EF9F27',lw:1.5,dash:[5,3]},
+      {data:p99B,color:'#E24B4A',lw:1.5,dash:[3,3]},{data:p999B,color:'#A32D2D',lw:1,dash:[2,4]}
+    ],{...co,yUnit:'ms'});
+    drawChart('c_tail',[
+      {data:p999A,color:CS.a,fill:fa,lw:2.5},{data:p999B,color:CS.b,fill:fb,dash:[5,3]}
+    ],{...co,yUnit:'ms'});
+    drawChart('c_latmax',[{data:latmaxA,color:CS.a},{data:latmaxB,color:CS.b,dash:[5,3]}],{...co,yUnit:'ms'});
+    // Tab 2
+    drawChart('c_bwstd',[{data:bwstdA,color:CS.a},{data:bwstdB,color:CS.b,dash:[5,3]}],co);
+    drawChart('c_eff',[{data:effA,color:CS.a,fill:fa},{data:effB,color:CS.b,fill:fb,dash:[5,3]}],co);
+    drawChart('c_qd',[{data:qdA,color:CS.a,pr:5,pf:CS.a},{data:qdB,color:CS.b,pr:5,pf:CS.b,dash:[5,3]}],{scatter:true});
+    drawChart('c_score',[{data:scoreA,color:CS.a,fill:fa},{data:scoreB,color:CS.b,fill:fb,dash:[5,3]}],co);
+    // Tab 3
+    drawChart('c_cu',[{data:cuA,color:CS.a},{data:cuB,color:CS.b,dash:[5,3]}],{...co,yUnit:'%'});
+    drawChart('c_cs',[{data:csA,color:CS.a},{data:csB,color:CS.b,dash:[5,3]}],{...co,yUnit:'%'});
+    drawChart('c_util',[{data:utilA,color:CS.a},{data:utilB,color:CS.b,dash:[5,3]}],{...co,yUnit:'%'});
+    drawChart('c_ctx',[{data:ctxA,color:CS.a},{data:ctxB,color:CS.b,dash:[5,3]}],co);
+    // Tab 2 bw range (stacked min/max area)
+    drawChart('c_bwrange',[
+      {data:bwminA,color:CS.a,fill:fa,lw:1,dash:[3,3]},{data:bwmaxA,color:CS.a,lw:2},
+      {data:bwminB,color:CS.b,fill:fb,lw:1,dash:[3,3]},{data:bwmaxB,color:CS.b,lw:2,dash:[5,3]}
+    ],co);
+  },100);
+
+  // ── Tab 4: IO Profile ───────────────────────────────────────────────────────
+  const profA=da[0]||{}, profB=db[0]||{};
+  const parseProfile=p=>{
+    const m={}; (p||'').split(' ').forEach(kv=>{const[k,v]=kv.split('=');if(k&&v)m[k]=v;}); return m;
+  };
+  const pA=parseProfile(profA.profile), pB=parseProfile(profB.profile);
+  const profFields=[
+    ['Workload (rw)',pA.rw||'—',pB.rw||'—'],
+    ['Block Size',pA.bs||'—',pB.bs||'—'],
+    ['iodepth/job',pA.iodepth||'—',pB.iodepth||'—'],
+    ['Direct IO',pA.direct||'—',pB.direct||'—'],
+    ['Duration',pA.dur||'—',pB.dur||'—'],
+    ['File size/job',profA.file_size||'—',profB.file_size||'—'],
+    ['IO Engine',profA.engine||'—',profB.engine||'—'],
+    ['Total jobs swept',da.length,db.length],
+    ['Max jobs',Math.max(...da.map(r=>r.jobs)),Math.max(...db.map(r=>r.jobs))],
+  ];
+  document.getElementById('profCards').innerHTML=`
+    <div class="profcard">
+      <div class="cardtitle" style="color:var(--a)">${nA} — IO Profile</div>
+      ${profFields.map(f=>`<div class="profrow"><span class="prlbl">${f[0]}</span><span class="prval ca">${f[1]}</span></div>`).join('')}
+    </div>
+    <div class="profcard">
+      <div class="cardtitle" style="color:var(--b)">${nB} — IO Profile</div>
+      ${profFields.map(f=>`<div class="profrow"><span class="prlbl">${f[0]}</span><span class="prval cb">${f[2]}</span></div>`).join('')}
+    </div>`;
+
+  // Profile match check
+  const mismatches=profFields.slice(0,5).filter(f=>f[1]!==f[2]&&f[1]!=='—'&&f[2]!=='—');
+  document.getElementById('profCmp').innerHTML=mismatches.length===0
+    ?`<div style="color:var(--green);font-family:var(--mono);font-size:12px;padding:12px">✓ Both systems used identical test profiles — comparison is valid.</div>`
+    :`<div style="background:var(--amber2);border-radius:8px;padding:14px;font-family:var(--mono);font-size:11px;color:var(--amber)">
+        ⚠ Profile mismatch detected — comparison may not be apple-to-apple:<br><br>
+        ${mismatches.map(f=>`• ${f[0]}: ${nA}=${f[1]} vs ${nB}=${f[2]}`).join('<br>')}
+      </div>`;
+
+  // ── Tab 5: Analysis ─────────────────────────────────────────────────────────
+  const iDiff=+pct(pkIopsA,pkIopsB), bDiff=+pct(pkBwA,pkBwB);
+  const lDiff=+pct(minLatA,minLatB), p99Diff=+pct(minP99A,minP99B);
+
+  const metricsA=[
+    {lbl:'Peak IOPS',val:fmtN(pkIopsA),cls:pkIopsA>=pkIopsB?'better':'worse'},
+    {lbl:'Peak BW',val:fmtN(pkBwA,'MB/s'),cls:pkBwA>=pkBwB?'better':'worse'},
+    {lbl:'Min Avg Latency',val:minLatA.toFixed(3)+'ms',cls:minLatA<=minLatB?'better':'worse'},
+    {lbl:'Min P99 Latency',val:minP99A.toFixed(3)+'ms',cls:minP99A<=minP99B?'better':'worse'},
+    {lbl:'Min P99.9 Latency',val:fmtN(Math.min(...da.map(r=>r.lat_p999||9999)))+'ms',cls:Math.min(...da.map(r=>r.lat_p999||9999))<=Math.min(...db.map(r=>r.lat_p999||9999))?'better':'worse'},
+    {lbl:'Sweet Spot',val:sweetA.jobs+' jobs',cls:'neutral'},
+    {lbl:'IOPS@Sweet',val:fmtN(sweetA.iops),cls:sweetA.iops>=sweetB.iops?'better':'worse'},
+    {lbl:'Lat@Sweet',val:sweetA.lat_avg.toFixed(3)+'ms',cls:sweetA.lat_avg<=sweetB.lat_avg?'better':'worse'},
+    {lbl:'Max Latency seen',val:fmtN(Math.max(...da.map(r=>r.lat_max||0)))+'ms',cls:Math.max(...da.map(r=>r.lat_max||0))<=Math.max(...db.map(r=>r.lat_max||0))?'better':'worse'},
+    {lbl:'Best IO Score',val:fmtN(Math.max(...scoreA)),cls:Math.max(...scoreA)>=Math.max(...scoreB)?'better':'worse'},
+  ];
+  const metricsB=[
+    {lbl:'Peak IOPS',val:fmtN(pkIopsB),cls:pkIopsB>=pkIopsA?'better':'worse'},
+    {lbl:'Peak BW',val:fmtN(pkBwB,'MB/s'),cls:pkBwB>=pkBwA?'better':'worse'},
+    {lbl:'Min Avg Latency',val:minLatB.toFixed(3)+'ms',cls:minLatB<=minLatA?'better':'worse'},
+    {lbl:'Min P99 Latency',val:minP99B.toFixed(3)+'ms',cls:minP99B<=minP99A?'better':'worse'},
+    {lbl:'Min P99.9 Latency',val:fmtN(Math.min(...db.map(r=>r.lat_p999||9999)))+'ms',cls:Math.min(...db.map(r=>r.lat_p999||9999))<=Math.min(...da.map(r=>r.lat_p999||9999))?'better':'worse'},
+    {lbl:'Sweet Spot',val:sweetB.jobs+' jobs',cls:'neutral'},
+    {lbl:'IOPS@Sweet',val:fmtN(sweetB.iops),cls:sweetB.iops>=sweetA.iops?'better':'worse'},
+    {lbl:'Lat@Sweet',val:sweetB.lat_avg.toFixed(3)+'ms',cls:sweetB.lat_avg<=sweetA.lat_avg?'better':'worse'},
+    {lbl:'Max Latency seen',val:fmtN(Math.max(...db.map(r=>r.lat_max||0)))+'ms',cls:Math.max(...db.map(r=>r.lat_max||0))<=Math.max(...da.map(r=>r.lat_max||0))?'better':'worse'},
+    {lbl:'Best IO Score',val:fmtN(Math.max(...scoreB)),cls:Math.max(...scoreB)>=Math.max(...scoreA)?'better':'worse'},
+  ];
+
+  // Verdict text
+  const iW=pkIopsA>pkIopsB?nA:pkIopsB>pkIopsA?nB:null;
+  const lW=minLatA<minLatB?nA:minLatB<minLatA?nB:null;
+  let verdict='';
+  if(!iW&&!lW){
+    verdict=`Both systems show nearly identical performance. Consider testing with larger file sizes or different block sizes to further differentiate.`;
+  }else if(iW===lW||!lW){
+    const w=iW||lW;
+    verdict=`<strong>${w}</strong> leads in both throughput and latency. IOPS advantage: <strong>${Math.abs(iDiff).toFixed(1)}%</strong>. `;
+    if(Math.abs(lDiff)>5) verdict+=`Latency advantage: <strong>${Math.abs(lDiff).toFixed(1)}%</strong>. `;
+    if(Math.abs(p99Diff)>20) verdict+=`P99 tail latency advantage: <strong>${Math.abs(p99Diff).toFixed(1)}%</strong> — important for consistent application response times. `;
+  }else{
+    verdict=`Trade-off: <strong>${iW}</strong> achieves higher IOPS (+${Math.abs(iDiff).toFixed(1)}%) while <em>${lW}</em> has lower latency (-${Math.abs(lDiff).toFixed(1)}%). `;
+    verdict+=`For latency-sensitive workloads (OLTP, real-time, databases): prefer <em>${lW}</em>. `;
+    verdict+=`For throughput-bound workloads (analytics, batch, backup): prefer <strong>${iW}</strong>. `;
+  }
+  if(sweetA.jobs!==sweetB.jobs) verdict+=`Sweet spot differs: <strong>${nA}</strong> peaks at ${sweetA.jobs} jobs vs <em>${nB}</em> at ${sweetB.jobs} jobs — indicating different saturation characteristics. `;
+  const maxLA=Math.max(...da.map(r=>r.lat_max||0)), maxLB=Math.max(...db.map(r=>r.lat_max||0));
+  if(Math.abs(maxLA-maxLB)>5){
+    const mw=maxLA<maxLB?nA:nB;
+    verdict+=`<strong>${mw}</strong> has significantly lower worst-case latency spikes (${Math.min(maxLA,maxLB).toFixed(1)} vs ${Math.max(maxLA,maxLB).toFixed(1)} ms) — critical for tail-latency SLAs.`;
+  }
+
+  document.getElementById('anlGrid').innerHTML=`
+    <div class="anlsec sa-side">
+      <h3>${nA}</h3>
+      ${metricsA.map(m=>`<div class="anlrow"><span class="arlbl">${m.lbl}</span><span class="arval ${m.cls}">${m.val}</span></div>`).join('')}
+    </div>
+    <div class="anlsec sb-side">
+      <h3>${nB}</h3>
+      ${metricsB.map(m=>`<div class="anlrow"><span class="arlbl">${m.lbl}</span><span class="arval ${m.cls}">${m.val}</span></div>`).join('')}
+    </div>
+    <div class="verdict"><h3>⚡ Analysis &amp; Recommendation</h3><div class="vtext">${verdict}</div></div>`;
+
+  // ── Tab 6: Full Table ───────────────────────────────────────────────────────
+  document.getElementById('thead').innerHTML=`
+    <th>Jobs</th>
+    <th colspan="2">IOPS</th><th>Δ</th>
+    <th colspan="2">BW MB/s</th><th>Δ</th>
+    <th colspan="2">AvgLat ms</th><th>Δ</th>
+    <th colspan="2">P99 ms</th><th>Δ</th>
+    <th colspan="2">P99.9 ms</th><th>Δ</th>
+    <th colspan="2">MaxLat ms</th><th>Δ</th>
+    <th colspan="2">CPU Sys%</th>`;
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  jobs.forEach(j=>{
+    const ra=ga(j),rb=gb(j); if(!ra||!rb)return;
+    const d=(a,b,low)=>{const v=+pct(a,b);const s=v>0?`+${v.toFixed(1)}%`:`${v.toFixed(1)}%`;
+      const c=Math.abs(v)<2?'bg-neu':low?(v<0?'bg-grn':'bg-red'):(v>0?'bg-grn':'bg-red');
+      return`<span class="bsm ${c}">${s}</span>`;};
+    tbody.innerHTML+=`<tr>
+      <td>${j} job${j>1?'s':''}</td>
+      <td class="tda">${fmtN(ra.iops)}</td><td class="tdb">${fmtN(rb.iops)}</td><td>${d(ra.iops,rb.iops,false)}</td>
+      <td class="tda">${ra.bw_mbs.toFixed(1)}</td><td class="tdb">${rb.bw_mbs.toFixed(1)}</td><td>${d(ra.bw_mbs,rb.bw_mbs,false)}</td>
+      <td class="tda">${ra.lat_avg.toFixed(3)}</td><td class="tdb">${rb.lat_avg.toFixed(3)}</td><td>${d(ra.lat_avg,rb.lat_avg,true)}</td>
+      <td class="tda">${ra.lat_p99.toFixed(3)}</td><td class="tdb">${rb.lat_p99.toFixed(3)}</td><td>${d(ra.lat_p99,rb.lat_p99,true)}</td>
+      <td class="tda">${(ra.lat_p999||0).toFixed(3)}</td><td class="tdb">${(rb.lat_p999||0).toFixed(3)}</td><td>${d(ra.lat_p999||0,rb.lat_p999||0,true)}</td>
+      <td class="tda">${(ra.lat_max||0).toFixed(2)}</td><td class="tdb">${(rb.lat_max||0).toFixed(2)}</td><td>${d(ra.lat_max||0,rb.lat_max||0,true)}</td>
+      <td class="tda">${(ra.cpu_sys||0).toFixed(1)}%</td><td class="tdb">${(rb.cpu_sys||0).toFixed(1)}%</td>
+    </tr>`;
+  });
+}
+
+// Redraw on resize
+let rt;
+window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(S.a&&S.b)render();},250)});
+</script>
+</body>
+</html>

@@ -1,0 +1,233 @@
+
+╔═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                               IO PERFORMANCE SWEEP  v2.0  |  Cache-Safe  |  Rich CSV                                ║
+║                             Jobs 1→N  |  O_DIRECT + unique files + drop_caches per step                             ║
+╚═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+
+▶  Configuration
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  Test path (mount point or directory to test)
+  Path: /app/user2/ko_test_perf3
+  [ OK ]  Path OK.
+
+  Workload type
+   1) randwrite   Random write ← recommended (DB/VM worst case)
+   2) randread    Random read  (DB query pattern)
+   3) read        Sequential read  (throughput test)
+   4) write       Sequential write (throughput test)
+   5) randrw      Mixed 70R/30W (OLTP simulation)
+  Select [default=1]:
+
+  Block size
+   1)4k  2)8k  3)16k  4)32k  5)64k  6)128k  7)512k  8)1m  9)Custom
+  Select [default=1]:
+
+  Max jobs to sweep to [default=8]:
+
+  iodepth per job [default=32]:
+
+  Duration per step: 1)10s  2)30s  3)60s  4)120s
+  Select [default=2]:
+
+  File size per job  (use > RAM to guarantee no cache inflation)
+   1)256m  2)1g  3)4g ← recommended for iSCSI/NFS  4)10g  5)Custom
+  Select [default=2]:
+
+  Direct IO (O_DIRECT) — bypasses OS page cache
+  Always recommended. Disable ONLY if filesystem doesn't support O_DIRECT
+  Enable? [Y/n]: Y
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  [INFO]  Test Path    : /app/user2/ko_test_perf3/io_sweep_20260330_093259
+  [INFO]  Workload     : randwrite   bs=4k
+  [INFO]  Sweep        : 1 → 8 jobs  (8 steps)
+  [INFO]  iodepth/job  : 32
+  [INFO]  Duration/step: 30s
+  [INFO]  File size    : 1g per job  (unique file per step)
+  [INFO]  Direct IO    : 1  (O_DIRECT — cache bypass)
+  [INFO]  IO Engine    : libaio
+  [INFO]  CSV output   : /app/user2/ko_test_perf3/io_sweep_20260330_093259/sweep_results.csv
+
+  [ OK ]  Root — page cache will be dropped between each step
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  Start sweep? [Y/n]: Y
+
+  [INFO]  Started at Mon Mar 30 09:33:15 AM +07 2026
+
+  [INFO]  Sweep: jobs 1 → 8  |  est. ~4m40s
+  [INFO]  CSV  : /app/user2/ko_test_perf3/io_sweep_20260330_093259/sweep_results.csv
+  [INFO]  Cache: O_DIRECT=1  unique_file=YES  drop_caches=YES
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  STEP 1/8  jobs=1    qd_total=32     bs=4k      rw=randwrite
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  [INFO]  Page cache dropped (echo 3 > /proc/sys/vm/drop_caches)
+  ✔ [███████████████████████████████████████████████████████████████████████████████████] 100% — Done
+
+
+
+
+
+
+  Throughput                348.77 MB/s   min=277.82   max=377.260s]
+  IOPS                       89285
+  Avg Latency               0.3581 ms   p50=0.3338   p95=0.514    p99=0.7496   p999=2.0562
+  Max Latency              12.6718 ms   stdev=0.1424 ms
+  CPU / IO                usr=6.47%  sys=36.55% util=99.68% ctx=559600
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  STEP 2/8  jobs=2    qd_total=64     bs=4k      rw=randwrite
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  [INFO]  Page cache dropped (echo 3 > /proc/sys/vm/drop_caches)
+  ✔ [███████████████████████████████████████████████████████████████████████████████████] 100% — Done
+
+
+
+
+
+
+  Throughput                419.06 MB/s   min=309.28   max=457.14s]
+  IOPS                      107279
+  Avg Latency               0.5962 ms   p50=0.5693   p95=0.8806   p99=1.1223   p999=2.5723
+  Max Latency               9.2667 ms   stdev=0.195 ms
+  CPU / IO                usr=3.79%  sys=27.04% util=99.77% ctx=970731
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  STEP 3/8  jobs=3    qd_total=96     bs=4k      rw=randwrite
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  [INFO]  Page cache dropped (echo 3 > /proc/sys/vm/drop_caches)
+  ✔ [███████████████████████████████████████████████████████████████████████████████████] 100% — Done
+
+
+
+
+
+
+  Throughput                470.07 MB/s   min=322.31   max=499.49s]
+  IOPS                      120336
+  Avg Latency               0.7973 ms   p50=0.766    p95=1.0732   p99=1.5811   p999=2.9327
+  Max Latency               9.5945 ms   stdev=0.2189 ms
+  CPU / IO                usr=3.06%  sys=26.22% util=99.74% ctx=949581
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  STEP 4/8  jobs=4    qd_total=128    bs=4k      rw=randwrite
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  [INFO]  Page cache dropped (echo 3 > /proc/sys/vm/drop_caches)
+  ✔ [███████████████████████████████████████████████████████████████████████████████████] 100% — Done
+
+
+
+
+
+
+  Throughput                484.47 MB/s   min=347.16   max=503.31s]
+  IOPS                      124023
+  Avg Latency               1.0316 ms   p50=1.0035   p95=1.2861   p99=1.8596   p999=3.1621
+  Max Latency              10.5331 ms   stdev=0.2292 ms
+  CPU / IO                usr=2.43%  sys=21.72% util=99.76% ctx=1077233
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  STEP 5/8  jobs=5    qd_total=160    bs=4k      rw=randwrite
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  [INFO]  Page cache dropped (echo 3 > /proc/sys/vm/drop_caches)
+  ✔ [███████████████████████████████████████████████████████████████████████████████████] 100% — Done
+
+
+
+
+
+
+  Throughput                 482.9 MB/s   min=332.28   max=511.49s]
+  IOPS                      123621
+  Avg Latency               1.2937 ms   p50=1.2698   p95=1.6466   p99=2.3429   p999=3.7192
+  Max Latency              11.9462 ms   stdev=0.2836 ms
+  CPU / IO                usr=2.05%  sys=17.86% util=99.77% ctx=1207559
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  STEP 6/8  jobs=6    qd_total=192    bs=4k      rw=randwrite
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  [INFO]  Page cache dropped (echo 3 > /proc/sys/vm/drop_caches)
+  ✔ [███████████████████████████████████████████████████████████████████████████████████] 100% — Done
+
+
+
+
+
+
+  Throughput                458.58 MB/s   min=408.2    max=499.87s]
+  IOPS                      117395
+  Avg Latency               1.6345 ms   p50=1.6138   p95=1.9579   p99=2.4084   p999=3.883
+  Max Latency            8587.4856 ms   stdev=6.4796 ms
+  CPU / IO                usr=1.58%  sys=10.74% util=95.12% ctx=1888254
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  STEP 7/8  jobs=7    qd_total=224    bs=4k      rw=randwrite
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  [INFO]  Page cache dropped (echo 3 > /proc/sys/vm/drop_caches)
+  ✔ [███████████████████████████████████████████████████████████████████████████████████] 100% — Done
+
+
+
+
+
+
+  Throughput                469.47 MB/s   min=299.34   max=493.15s]
+  IOPS                      120184
+  Avg Latency               1.8629 ms   p50=1.8104   p95=2.3101   p99=3.4898   p999=5.4723
+  Max Latency              29.5787 ms   stdev=0.3979 ms
+  CPU / IO                usr=1.48%  sys=14.2%  util=99.77% ctx=1350051
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  STEP 8/8  jobs=8    qd_total=256    bs=4k      rw=randwrite
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  [INFO]  Page cache dropped (echo 3 > /proc/sys/vm/drop_caches)
+  ✔ [███████████████████████████████████████████████████████████████████████████████████] 100% — Done
+
+
+
+
+
+
+  Throughput                487.71 MB/s   min=416.3    max=506.17s]
+  IOPS                      124854
+  Avg Latency               2.0497 ms   p50=2.007    p95=2.4084   p99=3.0638   p999=4.8169
+  Max Latency           20496.9992 ms   stdev=11.8506 ms
+  CPU / IO                usr=1.34%  sys=8.98%  util=99.76% ctx=2094994
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                                    SWEEP COMPLETE
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  Jobs         IOPS       BW(MB/s)   AvgLat     P99Lat     Status
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  1 jobs       89285      348.77     0.3581ms   0.7496ms   OK
+  2 jobs       107279     419.06     0.5962ms   1.1223ms   ★ SWEET
+  3 jobs       120336     470.07     0.7973ms   1.5811ms   OK
+  4 jobs       124023     484.47     1.0316ms   1.8596ms   OK
+  5 jobs       123621     482.9      1.2937ms   2.3429ms   HIGH LAT
+  6 jobs       117395     458.58     1.6345ms   2.4084ms   SATURATED
+  7 jobs       120184     469.47     1.8629ms   3.4898ms   SATURATED
+  8 jobs       124854     487.71     2.0497ms   3.0638ms   SATURATED
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  ★ Sweet spot: 2 jobs  |  IOPS: 107279  |  AvgLat: 0.5962 ms
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  [INFO]  CSV: /app/user2/ko_test_perf3/io_sweep_20260330_093259/sweep_results.csv
+  [INFO]  Open io_compare.html in browser and upload this CSV to generate charts
+
+  Done.  CSV: /app/user2/ko_test_perf3/io_sweep_20260330_093259/sweep_results.csv

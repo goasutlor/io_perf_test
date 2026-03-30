@@ -1,0 +1,72 @@
+name: Build Offline Bundle
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "packaging/**"
+      - "universal_io_test.sh"
+      - "storage_spark_sweep.sh"
+      - "s3_sweep.sh"
+      - "hdfs_sweep.sh"
+      - "io_sweep.sh"
+      - "README.md"
+      - "OFFLINE_BUNDLE_README.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: offline-bundle-main
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build bundle with bundled AWS CLI
+        run: bash packaging/build-offline-bundle.sh --with-aws-cli
+
+      - name: Locate tarball
+        id: pick
+        run: |
+          set -euo pipefail
+          TAR_PATH="$(ls -1t dist/io-perf-offline-*.tar.gz | head -n1)"
+          cp "$TAR_PATH" dist/io-perf-offline-latest.tar.gz
+          echo "tar_path=$TAR_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: io-perf-offline-bundle
+          path: |
+            ${{ steps.pick.outputs.tar_path }}
+            dist/io-perf-offline-latest.tar.gz
+          retention-days: 30
+
+      - name: Publish/Update release asset (stable URL)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: offline-bundle-latest
+          name: Offline Bundle (latest)
+          body: |
+            Auto-built offline bundle with AWS CLI included.
+
+            Download:
+            - `io-perf-offline-latest.tar.gz` (stable filename)
+
+            Quick start:
+            1. Extract tarball on target server.
+            2. Run `./universal_io_test.sh`.
+            3. Choose storage type, then profile flow.
+          files: |
+            dist/io-perf-offline-latest.tar.gz
+            ${{ steps.pick.outputs.tar_path }}
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+          append_body: false

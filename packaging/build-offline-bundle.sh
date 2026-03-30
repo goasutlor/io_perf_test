@@ -1,8 +1,19 @@
 #!/usr/bin/env bash
 # Build io-perf-offline-<stamp>.tar.gz with project files + vendored AWS CLI (if present).
-# For air-gapped targets: run packaging/vendor-aws-cli.sh first on a connected host.
+# Usage:
+#   bash packaging/build-offline-bundle.sh
+#   bash packaging/build-offline-bundle.sh --with-aws-cli   # download/install Linux x64 CLI into vendor/ first (needs curl)
+# For air-gapped targets: build --with-aws-cli on a connected host, then ship the tarball.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ "${1:-}" == "--with-aws-cli" ]]; then
+  if [[ ! -x "$ROOT/vendor/aws-cli/bin/aws" ]]; then
+    echo "Installing bundled AWS CLI v2 into vendor/aws-cli ..."
+    bash "$ROOT/packaging/vendor-aws-cli.sh"
+  else
+    echo "Using existing $ROOT/vendor/aws-cli/bin/aws"
+  fi
+fi
 OUT="${OUT:-$ROOT/dist}"
 mkdir -p "$OUT"
 STAMP=$(date +%Y%m%d%H%M)

@@ -5,6 +5,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/packaging/bootstrap-aws-cli.sh" 2>/dev/null || true
+prepend_bundled_aws_cli "$SCRIPT_DIR" || true
 
 echo "==============================================="
 echo " Universal IO Test"

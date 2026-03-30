@@ -4,6 +4,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/packaging/bootstrap-aws-cli.sh" 2>/dev/null || true
+prepend_bundled_aws_cli "$SCRIPT_DIR" || true
 VERSION="1.0"
 
 RED='\033[0;31m'; GRN='\033[0;32m'; BLD='\033[1m'; BCYA='\033[1;36m'; RST='\033[0m'

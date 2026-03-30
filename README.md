@@ -68,6 +68,8 @@ chmod +x universal_io_test.sh
 - If you choose **Filesystem**, it launches `io_sweep.sh` (Standard + all profile groups).
 - If you choose **HDFS** or **S3**, it launches Spark-like profile flow (storage-specific behavior) from `storage_spark_sweep.sh`.
 
+**Bundled AWS CLI (S3) — minimal setup:** if `vendor/aws-cli/bin/aws` exists next to the scripts (from an offline tarball build), **`universal_io_test.sh`**, **`storage_spark_sweep.sh`**, and **`s3_sweep.sh`** prepend it to `PATH` automatically — you do **not** need to `source env.sh` for normal runs. You still need **AWS credentials** (cannot be baked in): on **EC2** use an **IAM instance profile** (no `aws configure` files), or set **`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`** (and **`AWS_SESSION_TOKEN`** if using STS). Set a region once, e.g. **`export AWS_DEFAULT_REGION=ap-southeast-1`**, or use **`~/.aws/config`**. Only the **bucket name** is prompted (or set **`S3_BUCKET`**).
+
 ### S3 / HDFS simple sweeps (optional)
 
 | Script | Purpose | Env / notes |
@@ -77,11 +79,27 @@ chmod +x universal_io_test.sh
 
 CSV columns match **`io_sweep.sh`** (including **`storage_backend`**). Upload into **`io_compare.html`** as usual.
 
-### Offline bundle (AWS CLI on air-gapped Linux hosts)
+### Offline bundle (AWS CLI packed for air-gapped Linux hosts)
 
-1. On a connected **Linux x86_64** machine: `bash packaging/vendor-aws-cli.sh` (downloads AWS CLI v2 into `vendor/aws-cli/`).  
-2. `bash packaging/build-offline-bundle.sh` → **`dist/io-perf-offline-*.tar.gz`**.  
-3. On the target: extract, then **`source packaging/env.sh`** and run **`s3_sweep.sh`** (Hadoop clients for **`hdfs_sweep.sh`** are expected to exist on the host; not bundled).
+On a build machine with internet (**Linux x86_64**):
+
+```bash
+bash packaging/build-offline-bundle.sh --with-aws-cli
+```
+
+This downloads/installs AWS CLI v2 into **`vendor/aws-cli/`** (if missing) and writes **`dist/io-perf-offline-*.tar.gz`** including the project + bundled CLI.
+
+On the target server: extract the tarball and run **`./universal_io_test.sh`** — bundled `aws` is picked up automatically. Optional manual PATH: **`source ./env.sh`** (same effect). Hadoop clients for **HDFS** are **not** bundled; install on the host or use an image that already has `hdfs`/`hadoop` in `PATH`.
+
+### GitHub Action build + download link
+
+This repo now includes `.github/workflows/build-offline-bundle.yml` to auto-build an offline tarball (with AWS CLI bundled) and publish/update a stable release asset.
+
+- Workflow: **Build Offline Bundle** (runs on relevant `main` changes and `workflow_dispatch`)
+- Stable download URL:
+  - `https://github.com/goasutlor/io_perf_test/releases/download/offline-bundle-latest/io-perf-offline-latest.tar.gz`
+- In-bundle quick-start file:
+  - `OFFLINE_BUNDLE_README.md`
 
 ---
 
@@ -387,6 +405,10 @@ Sample UI (`docs/screenshots/`, from `sweep_results_1.csv` / `sweep_results2.csv
 
 | File | Description |
 |------|-------------|
+| `universal_io_test.sh` | Single entry: pick Filesystem / HDFS / S3, then route to the right runner |
+| `storage_spark_sweep.sh` | Spark-like flows for FS (fio) / HDFS / S3 |
+| `packaging/bootstrap-aws-cli.sh` | Prepends `vendor/aws-cli/bin` to `PATH` when bundled CLI exists |
+| `env.sh` | Optional `source ./env.sh` to use bundled `aws` (scripts auto-bootstrap PATH when possible) |
 | `io_sweep.sh` | Main sweep script and CSV writer |
 | `io_compare.html` | Browser report: single CSV, compare, or universal profile tabs |
 | `RELEASE.md` | Version history (v4.0 universal tool) |

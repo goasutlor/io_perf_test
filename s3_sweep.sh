@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # Parallel S3 PUT benchmark → CSV compatible with io_compare.html (storage_backend=s3).
 # Requires: aws CLI in PATH, credentials with s3:PutObject on the bucket/prefix.
-# Does not install AWS CLI (use packaging/env.sh after vendoring).
+# Bundled CLI: vendor/aws-cli/bin is prepended automatically when present.
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/packaging/bootstrap-aws-cli.sh" 2>/dev/null || true
+prepend_bundled_aws_cli "$SCRIPT_DIR" || true
 
 S3_BUCKET="${S3_BUCKET:?Set env S3_BUCKET (target bucket)}"
 S3_PREFIX="${S3_PREFIX:-io-perf-sweep}"
@@ -17,7 +22,7 @@ AWS_EXTRA="${AWS_EXTRA:-}"
 have(){ command -v "$1" >/dev/null 2>&1; }
 
 if ! have aws; then
-  echo "aws CLI not found. Source packaging/env.sh after extracting the offline bundle, or install AWS CLI v2." >&2
+  echo "aws CLI not found. Run: bash packaging/vendor-aws-cli.sh (then rebuild bundle), or source ./env.sh if vendor/aws-cli exists." >&2
   exit 1
 fi
 

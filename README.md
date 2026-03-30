@@ -5,9 +5,9 @@
 **Front-page quick model (2 Layers):**
 
 1. **Storage Layer first** — choose `Filesystem` / `HDFS` / `Object (S3)`
-2. **IO Profile Layer second** — choose Spark behavior: `spark_read`, `spark_write`, `spark_shuffle`, `spark_head`, `spark_move` (or full suite)
-
-For `HDFS` and `S3`, this repo intentionally focuses on **Spark-like workload behavior**.
+2. **IO Profile Layer second**:
+   - **If `Filesystem`**: you can run Standard sweep or any profile group (`Database` / `VM` / `Streaming` / `Backup` / `Container` / `Spark` / `Full Universal`)
+   - **If `HDFS` or `S3`**: this flow intentionally offers **Spark-like** profiles only (`spark_read`, `spark_write`, `spark_shuffle`, `spark_head`, `spark_move`, or full suite)
 
 Repository: [https://github.com/goasutlor/io_perf_test](https://github.com/goasutlor/io_perf_test)
 

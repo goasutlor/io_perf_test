@@ -1,6 +1,6 @@
 # IO Performance Sweep & Comparison Report
 
-**v4.0 — Universal IO Testing Tool:** a **jobs 1→N** sweep using [fio](https://github.com/axboe/fio), exporting **CSV** with optional **`profile_name`** / **`profile_group`** columns. Open **`io_compare.html`** locally for **single-system** reports, **A/B compare**, or **universal** multi-profile CSVs (tabs follow workload group). No server required.
+**v4.0 / v4.0.1 — Universal IO Testing Tool:** a **jobs 1→N** sweep using [fio](https://github.com/axboe/fio), exporting **CSV** with optional **`profile_name`** / **`profile_group`** columns. Open **`io_compare.html`** locally for **single-system** reports, **A/B compare**, or **universal** multi-profile CSVs (tabs follow workload group). No server required.
 
 Repository: [https://github.com/goasutlor/io_perf_test](https://github.com/goasutlor/io_perf_test)
 
@@ -26,6 +26,96 @@ flowchart LR
 1. **Linux (root recommended)** — Run `io_sweep.sh` (Standard mode or a profile mode: Database, VM, Spark, Full Universal, …).  
 2. **Output** — CSV under `.../io_sweep_<timestamp>/` (or group-specific prefix) including `profile_name` and `profile_group` for universal runs.  
 3. **Web report** — Open `io_compare.html` in a browser. Use **Single System** to analyze one CSV, or **Compare 2 Systems** for two. Universal CSVs are detected automatically; tabs match **`profile_group`**.
+
+---
+
+## IO workload profiles (full catalog)
+
+`io_sweep.sh` opens with a **test mode** menu. **Mode 1 (Standard Sweep)** uses a *custom* single workload: you choose an fio **`rw=`** pattern, block size, and jobs 1→N — it does **not** use the named profiles below. **Modes 2–8** run **predefined profiles** (fixed `rw`, `bs`, `iodepth`, and optional `rwmixread` for `randrw`). Each step writes CSV columns **`profile_name`** and **`profile_group`** so `io_compare.html` can group charts. The same names appear in `PROFILE_META` inside `io_compare.html`.
+
+### Main menu modes
+
+| # | Mode | What it runs |
+|---|------|----------------|
+| **1** | **Standard Sweep** | One fio workload (you pick `rw` below), one `profile` string in CSV, jobs 1→N. |
+| **2** | Database | Choose OLTP, OLAP, WAL, Index — or all. |
+| **3** | VM / Virtualization | Guest, Clone, VDI — or all. |
+| **4** | Streaming / Media | Ingest, Playback, Log — or all. |
+| **5** | Backup / Archive | Backup read, restore write, dedup — or all. |
+| **6** | Container / K8s | Image pull, PVC mixed, etcd WAL — or all. |
+| **7** | Spark | Read, Write, Shuffle, HEAD, MOVE — or all. |
+| **8** | Full Universal Suite | Every profile in the tables below, in sequence. |
+
+### Mode 1 only — fio `rw=` patterns (not the named profile catalog)
+
+These five options apply **only** to **Standard Sweep**. They map directly to fio’s `rw=` parameter.
+
+| # | `rw` | Role |
+|---|------|------|
+| 1 | `randwrite` | Random write — recommended baseline (DB / VM worst-case style) |
+| 2 | `randread` | Random read — query-style random I/O |
+| 3 | `read` | Sequential read — throughput-oriented |
+| 4 | `write` | Sequential write — throughput-oriented |
+| 5 | `randrw` | Mixed random 70% read / 30% write — OLTP-style |
+
+### Named profiles (modes 2–8) — `profile_name` in CSV
+
+Each row is defined in `io_sweep.sh` as `NAME|rw|bs|iodepth|rwmixread|…|description`. Empty **rwmix** means N/A (not `randrw` or mix not used). **21** workload profiles total.
+
+#### Spark (`profile_group` → `spark`)
+
+| `profile_name` | fio `rw` | `bs` | `iodepth` | `rwmixread` | Description |
+|----------------|----------|------|-----------|-------------|-------------|
+| `spark_read` | read | 128k | 16 | — | Sequential read — Parquet/ORC scan |
+| `spark_write` | write | 128k | 16 | — | Sequential write — task partition output |
+| `spark_shuffle` | randrw | 32k | 32 | 50 | Shuffle — sort/join/groupBy (50R/50W) |
+| `spark_head` | randread | 4k | 64 | — | HEAD/metadata — schema lookup, small random reads |
+| `spark_move` | randrw | 128k | 8 | 70 | MOVE/commit — task commit rename (70R/30W) |
+
+#### Database (`database`)
+
+| `profile_name` | fio `rw` | `bs` | `iodepth` | `rwmixread` | Description |
+|----------------|----------|------|-----------|-------------|-------------|
+| `db_oltp` | randrw | 8k | 32 | 70 | OLTP random — MySQL/PostgreSQL style (70R/30W) |
+| `db_olap` | read | 512k | 8 | — | OLAP scan — analytics full-table sequential read |
+| `db_wal` | write | 4k | 1 | — | WAL/redo — sync write, QD 1 (fsync-sensitive) |
+| `db_index` | randread | 4k | 64 | — | Index lookup — B-tree random read, high QD |
+
+#### VM / Virtualization (`vm`)
+
+| `profile_name` | fio `rw` | `bs` | `iodepth` | `rwmixread` | Description |
+|----------------|----------|------|-----------|-------------|-------------|
+| `vm_guest` | randrw | 16k | 32 | 60 | VM disk — general guest OS I/O (60R/40W) |
+| `vm_clone` | read | 256k | 16 | — | VM clone/snapshot — live migration read |
+| `vm_vdi` | randread | 8k | 128 | — | VDI boot storm — many VMs booting, high concurrency |
+
+#### Streaming / Media (`streaming`)
+
+| `profile_name` | fio `rw` | `bs` | `iodepth` | `rwmixread` | Description |
+|----------------|----------|------|-----------|-------------|-------------|
+| `stream_ingest` | write | 1m | 4 | — | Video ingest — large sequential writer (camera/encoder) |
+| `stream_play` | read | 512k | 8 | — | Video playback — multi-stream sequential read |
+| `stream_log` | write | 64k | 8 | — | Log streaming — Kafka/Fluentd append-style write |
+
+#### Backup / Archive (`backup`)
+
+| `profile_name` | fio `rw` | `bs` | `iodepth` | `rwmixread` | Description |
+|----------------|----------|------|-----------|-------------|-------------|
+| `bkp_read` | read | 512k | 4 | — | Backup read — full backup source, throughput |
+| `bkp_write` | write | 512k | 4 | — | Restore write — restore target, throughput |
+| `bkp_dedup` | randrw | 8k | 16 | 50 | Dedup/compress — read-compare-write mixed I/O |
+
+#### Container / Kubernetes (`container`)
+
+| `profile_name` | fio `rw` | `bs` | `iodepth` | `rwmixread` | Description |
+|----------------|----------|------|-----------|-------------|-------------|
+| `k8s_pull` | read | 128k | 32 | — | Image pull — layer extract, parallel read |
+| `k8s_pvc` | randrw | 64k | 16 | 50 | PVC mixed — stateful DB/queue (50R/50W) |
+| `k8s_etcd` | write | 4k | 1 | — | etcd WAL — fsync write, QD 1, latency-critical |
+
+---
+
+**Note:** `io_compare.html` also lists these rows on the **landing page** (before you generate a report) and applies colors/labels from the embedded `PROFILE_META` map. For script changes, the source of truth is **`PROFILES_*`** arrays near the top of `io_sweep.sh`.
 
 ---
 
@@ -60,7 +150,7 @@ The script checks these automatically at startup (`check_prerequisites`).
 
 - **Jobs 1→N sweep** — Runs one job count at a time from 1 through `MAX_JOBS` to explore throughput/latency vs. concurrency.  
 - **Cache mitigation** — Unique test file per step, **O_DIRECT** (`--direct`), `--invalidate=1`, **drop_caches** when root, short settle delay, delete test files after each step.  
-- **Interactive menu** — Path, workload (randwrite / randread / read / write / randrw), block size, max jobs, iodepth, duration, per-job file size, Direct IO on/off.  
+- **Interactive menu** — **Mode 1–8** (Standard vs profile groups vs full universal); Standard Sweep uses path + **fio `rw=`** (five patterns) + block size + jobs/iodepth/duration/file size/Direct IO; profile modes pick a named workload from the [IO workload profiles](#io-workload-profiles-full-catalog) catalog.  
 - **Rich CSV** — Bandwidth, IOPS, latency (avg, p50–p999, max), CPU, IO util, context switches, profile, engine, timestamp.  
 - **End-of-run summary** — Approximate “sweet spot” (Python over CSV) and per-job status (e.g. OK / HIGH LAT / SATURATED).
 
@@ -112,14 +202,19 @@ When the run finishes, the script prints the path to `sweep_results.csv` and sug
 
 ## Examples from this repository
 
-### Snippet from `io_sweep.sh` (workload menu)
+### Snippet from `io_sweep.sh` (Standard Sweep — fio `rw=` only)
+
+After you choose **mode 1**, the script asks for the **fio read/write pattern** (this is *not* the 21 named profiles; those are modes **2–8** — see [IO workload profiles](#io-workload-profiles-full-catalog) above).
 
 ```bash
+  echo -e "  ${BLD}Workload type${RST}  ${DIM}(fio rw= pattern — Standard Sweep only)${RST}"
+  echo -e "  ${DIM}Other modes (2–8) pick ready-made profiles: Database, VM, Streaming, Backup, K8s, Spark, or full suite — not this list.${RST}"
   echo "   1) randwrite   Random write ← recommended (DB/VM worst case)"
   echo "   2) randread    Random read  (DB query pattern)"
   echo "   3) read        Sequential read  (throughput test)"
   echo "   4) write       Sequential write (throughput test)"
   echo "   5) randrw      Mixed 70R/30W (OLTP simulation)"
+  # read -rp "  Select fio rw [default=1]: "
 ```
 
 ### Rows from `sweep_results_1.csv`

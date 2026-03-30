@@ -63,6 +63,8 @@
 #  OUTPUT:
 #    sweep_results.csv  (standard) or  spark_results.csv  (spark mode)
 #    → Upload to io_compare.html for charts and analysis
+#
+#  AUTHOR / CREDIT — idea & context: Sontas Jiamsripong
 # ==============================================================================
 set -uo pipefail
 
@@ -138,10 +140,13 @@ declare -a PROFILES_BACKUP=(
 
 # ── Container / K8s profiles ──────────────────────────────────────────────────
 declare -a PROFILES_CONTAINER=(
-  "k8s_pull|read|128k|32||container|2|Container Image Pull — layer extract parallel read"
-  "k8s_pvc|randrw|64k|16|50|container|2|PVC Mixed — StatefulSet DB/queue (50R/50W)"
-  "k8s_etcd|write|4k|1||container|2|etcd WAL — fsync write qd=1 latency critical"
+  "k8s_pull|read|128k|32||container|1;35|Container Image Pull — layer extract parallel read"
+  "k8s_pvc|randrw|64k|16|50|container|1;35|PVC Mixed — StatefulSet DB/queue (50R/50W)"
+  "k8s_etcd|write|4k|1||container|1;35|etcd WAL — fsync write qd=1 latency critical"
 )
+
+# Placeholder for Full Universal menu (array name must exist for nameref)
+declare -a PROFILES_ALL_DUMMY=()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 get_tw()  { TERM_W=$(tput cols 2>/dev/null || echo 80); }
@@ -484,13 +489,18 @@ menu_profile_group() {
 }
 
 # ── Generic profile sweep runner ──────────────────────────────────────────────
+# Optional $2: if "1", skip write_csv_header (append to existing CSV — used by run_full_suite)
 run_profile_group_sweep() {
   local arr_name="$1"
+  local skip_header="${2:-0}"
   local -n rprof_arr="$arr_name"
   local count="${#rprof_arr[@]}"
   local full_num=$(( count + 1 ))
 
-  mkdir -p "${TEST_DIR}"; write_csv_header
+  mkdir -p "${TEST_DIR}"
+  if [[ "$skip_header" != "1" ]]; then
+    write_csv_header
+  fi
 
   # Build list of profiles to execute
   local -a to_run=()
@@ -751,62 +761,117 @@ run_full_suite() {
     printf "  ${BCYA}★★ GROUP: %-20s${RST}
 " "${all_names[$i]}"
     thick; echo
-    run_profile_group_sweep "${all_groups[$i]}"
+    # First group writes CSV header; later groups append only (do not truncate CSV)
+    if [[ "$i" -eq 0 ]]; then
+      run_profile_group_sweep "${all_groups[$i]}"
+    else
+      run_profile_group_sweep "${all_groups[$i]}" "1"
+    fi
   done
 }
 
-# ── Terminal summary ───────────────────────────────────────────────────────────
+# ── Terminal summary (csv.DictReader — safe with commas in fields) ─────────────
 print_summary() {
   get_tw; echo; thick
   printf "${BCYA}%*s${RST}\n" $(( (TERM_W+14)/2 )) "SWEEP COMPLETE"
   thick; echo
 
-  if [[ "$MODE_TYPE" == "spark" ]]; then
-    # Summary per spark operation
-    local ops; ops=$(tail -n +2 "${CSV_FILE}" | cut -d',' -f25 | sort -u)
-    for op in $ops; do
-      echo -e "  ${BLD}Spark: ${op^^}${RST}"
-      printf "    %-10s %-10s %-10s %-10s\n" "Jobs" "IOPS" "BW(MB/s)" "AvgLat"
-      grep ",${op}$" "${CSV_FILE}" | while IFS=',' read -r j qd bw iops _ _ _ lat _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ op2; do
-        [[ "$j" == "jobs" ]] && continue
-        printf "    %-10s %-10s %-10s %-10s\n" "${j}j" "$iops" "$bw" "${lat}ms"
-      done
-      echo
-    done
-  else
-    # Standard summary with sweet spot
-    local sweet_jobs sweet_iops sweet_lat
-    read -r sweet_jobs sweet_iops sweet_lat <<< "$(python3 - "${CSV_FILE}" <<'PYEOF' 2>/dev/null
-import csv,sys
-rows=[]
-with open(sys.argv[1]) as f:
-    for r in csv.DictReader(f):
-        try: rows.append({'j':int(r['jobs']),'iops':int(r['iops']),'lat':float(r['lat_avg_ms'])})
-        except: pass
-if not rows: print("0 0 0"); sys.exit()
-ml=min(r['lat'] for r in rows)
-best=rows[0]
+  python3 - "${CSV_FILE}" <<'PYEOF'
+import csv, sys
+from collections import defaultdict
+
+path = sys.argv[1]
+G = "\033[1;32m"
+R = "\033[1;31m"
+Y = "\033[1;33m"
+N = "\033[0m"
+B = "\033[1;34m"
+GRN = "\033[0;32m"
+W = "\033[1;37m"
+
+rows = []
+try:
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        rdr = csv.DictReader(f)
+        fn = rdr.fieldnames or []
+        has_pn = "profile_name" in fn
+        for r in rdr:
+            try:
+                pn = (r.get("profile_name") or "").strip() or "sweep"
+                if not has_pn:
+                    pn = "sweep"
+                pg = (r.get("profile_group") or "").strip() or "standard"
+                rows.append(
+                    {
+                        "jobs": int(r["jobs"]),
+                        "iops": int(r["iops"]),
+                        "bw": float(r["bw_mbs"]),
+                        "lat": float(r["lat_avg_ms"]),
+                        "profile_name": pn,
+                        "profile_group": pg,
+                    }
+                )
+            except Exception:
+                continue
+except Exception as e:
+    print(f"  {R}Could not read CSV: {e}{N}")
+    sys.exit(0)
+
+if not rows:
+    print("  [No data rows in CSV]")
+    sys.exit(0)
+
+
+def sweet_spot(sub):
+    if not sub:
+        return None
+    ml = min(x["lat"] for x in sub)
+    best = sub[0]
+    for x in sub:
+        if x["lat"] <= ml * 2 and x["iops"] >= best["iops"]:
+            best = x
+    return best
+
+
+by = defaultdict(list)
 for r in rows:
-    if r['lat']<=ml*2 and r['iops']>=best['iops']: best=r
-print(best['j'],best['iops'],best['lat'])
+    by[r["profile_name"]].append(r)
+
+profiles = sorted(by.keys(), key=lambda p: (by[p][0]["profile_group"], p))
+
+
+def status_for(x, best, sweet_ref):
+    if x["jobs"] == best["jobs"]:
+        return G, "★ SWEET"
+    if x["lat"] > sweet_ref * 2.5:
+        return R, "SATURATED"
+    if x["lat"] > sweet_ref * 2.0:
+        return Y, "HIGH LAT"
+    return GRN, "OK"
+
+
+for pname in profiles:
+    sub = sorted(by[pname], key=lambda x: x["jobs"])
+    best = sweet_spot(sub)
+    if not best:
+        continue
+    sweet_ref = best["lat"]
+    multi = len(profiles) > 1 or (len(profiles) == 1 and pname != "sweep")
+    if multi:
+        print(f"\n  {B}▶ {pname}  ({sub[0]['profile_group']}){N}")
+    print(f"  {'Jobs':<12} {'IOPS':<10} {'BW(MB/s)':<10} {'AvgLat':<10} {'Status':<10}")
+    print("  " + "-" * 56)
+    for x in sub:
+        col, st = status_for(x, best, sweet_ref)
+        print(
+            f"  {col}{x['jobs']:<12} {x['iops']:<10} {x['bw']:<10.1f} "
+            f"{x['lat']:<10.3f}ms {st}{N}"
+        )
+    print(
+        f"\n  {G}★ Sweet spot ({pname}): {W}{best['jobs']} jobs{N}  "
+        f"IOPS: {W}{best['iops']}{N}  AvgLat: {W}{best['lat']:.4f} ms{N}"
+    )
 PYEOF
-)"
-    printf "  %-12s %-10s %-10s %-10s %-8s\n" "Jobs" "IOPS" "BW(MB/s)" "AvgLat" "Status"
-    divider
-    while IFS=',' read -r j qd bw iops _ _ _ lat_avg _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _; do
-      [[ "$j" == "jobs" || -z "$j" ]] && continue
-      local col status
-      if [[ "$j" -eq "${sweet_jobs:-0}" ]]; then col="${BGRN}"; status="★ SWEET"
-      elif awk "BEGIN{exit !(${lat_avg}+0 > ${sweet_lat:-99}*2.5)}" 2>/dev/null; then col="${BRED}"; status="SATURATED"
-      elif awk "BEGIN{exit !(${lat_avg}+0 > ${sweet_lat:-99}*2.0)}" 2>/dev/null; then col="${BYEL}"; status="HIGH LAT"
-      else col="${GRN}"; status="OK"; fi
-      printf "  ${col}%-12s${RST} %-10s %-10s %-10s ${col}%s${RST}\n" \
-        "${j} jobs" "$iops" "$bw" "${lat_avg}ms" "$status"
-    done < "${CSV_FILE}"
-    echo; thick
-    printf "  ${BGRN}★ Sweet spot: ${BWHT}%s jobs${RST}  IOPS: ${BWHT}%s${RST}  AvgLat: ${BWHT}%s ms${RST}\n" \
-      "$sweet_jobs" "$sweet_iops" "$sweet_lat"
-  fi
 
   thick; echo
   info "CSV: ${BLD}${CSV_FILE}${RST}"

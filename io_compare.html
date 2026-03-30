@@ -303,7 +303,7 @@ footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:10
   </div><!-- /#reportPanels -->
 </div>
 
-<footer>io_compare.html v4.0 &nbsp;·&nbsp; self-contained · works offline &nbsp;·&nbsp; Release: see RELEASE.md in repository</footer>
+<footer>io_compare.html v4.0 &nbsp;·&nbsp; self-contained · works offline &nbsp;·&nbsp; Idea &amp; context: Sontas Jiamsripong &nbsp;·&nbsp; Release: see RELEASE.md in repository</footer>
 </div>
 
 <script>
@@ -324,7 +324,9 @@ function parseCSVLine(line){
   return out;
 }
 function parseCSV(txt){
-  const lines=txt.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  let raw=txt;
+  if(raw.charCodeAt(0)===0xfeff) raw=raw.slice(1);
+  const lines=raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
   if(!lines.length) return [];
   const first=parseCSVLine(lines[0]);
   const looksHeader=first[0]==='jobs' && first[1]==='total_qd';
@@ -501,7 +503,9 @@ function drawChart(id,datasets,opts={}){
     if(opts.scatter) d.data.forEach(p=>allY.push(p.y));
     else d.data.forEach(v=>allY.push(v));
   });
-  const minY=0, maxY=(Math.max(...allY)*1.18)||1;
+  let maxY=allY.length ? Math.max(...allY)*1.18 : 1;
+  if(!isFinite(maxY)||maxY<=0) maxY=1;
+  const minY=0;
   const n=opts.labels?.length||Math.max(...datasets.map(d=>d.data.length));
   const labels=opts.labels||Array.from({length:n},(_,i)=>i+1);
 
@@ -536,8 +540,9 @@ function drawChart(id,datasets,opts={}){
 
     const toXY=(v,i)=>{
       if(opts.scatter){
-        const xs=data.map(p=>p.x), minX=Math.min(...xs), maxX=Math.max(...xs)||1;
-        return{x:P.l+cW*(v.x-minX)/(maxX-minX),y:P.t+cH-cH*(v.y-minY)/(maxY-minY)};
+        const xs=data.map(p=>p.x), minX=Math.min(...xs), maxX=Math.max(...xs);
+        const xSpan=Math.max(maxX-minX,1e-9);
+        return{x:P.l+cW*(v.x-minX)/xSpan,y:P.t+cH-cH*(v.y-minY)/(maxY-minY)};
       }
       return{x:P.l+cW*i/Math.max(n-1,1),y:P.t+cH-cH*(v-minY)/(maxY-minY)};
     };
@@ -576,6 +581,7 @@ const fa='rgba(0,87,255,0.08)', fb='rgba(224,40,79,0.08)';
 function fmtN(v,u=''){ return v>=1e6?(v/1e6).toFixed(2)+'M'+u:v>=1000?(v/1000).toFixed(1)+'K'+u:v.toFixed(v<10?2:0)+u; }
 function pct(a,b){ return b?((a-b)/b*100).toFixed(1):'—'; }
 function findSweet(rows){
+  if(!rows?.length) return {jobs:0,iops:0,lat_avg:0,bw_mbs:0};
   const ml=Math.min(...rows.map(r=>r.lat_avg));
   let best=rows[0];
   rows.forEach(r=>{if(r.lat_avg<=ml*2&&r.iops>=best.iops)best=r;});
@@ -1208,9 +1214,9 @@ function renderSingle(da){
     <div class="verdict" style="grid-column:1/-1"><h3>⚡ Analysis</h3><div class="vtext">${verdict}</div></div>`;
 }
 
-// Redraw on resize
+// Redraw on resize (debounced — full re-render is heavy)
 let rt;
-window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(S.a?.length)render();},250)});
+window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(S.a?.length)render();},400)});
 </script>
 </body>
 </html>

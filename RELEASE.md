@@ -1,5 +1,7 @@
 # Release notes — IO Performance Tooling
 
+**Credit:** Idea and context for this tooling are attributed to **Sontas Jiamsripong**.
+
 ## v4.0 — Universal IO Testing Tool (2026-03-30)
 
 ### `io_sweep.sh` (shell)
@@ -31,6 +33,14 @@
 | `docs/IO_COMPARE_WEB.md` | HTML/JS walkthrough for maintainers |
 
 ---
+
+## Maintenance fixes (post–v4.0 documentation)
+
+- **Full Universal suite CSV** — `run_profile_group_sweep` no longer calls `write_csv_header` on every group; only the first group creates the file, later groups **append** so all profiles remain in one CSV.
+- **Terminal `print_summary`** — Replaced fragile `cut`/`grep` on comma-separated lines with **`csv.DictReader`** (Python), with per-**`profile_name`** sweet spot and status when the CSV contains multiple profiles (all modes, not only Spark).
+- **`PROFILES_ALL_DUMMY`** — Declared as an empty array so the Full Universal menu `nameref` is valid.
+- **Container profile colors** — `pcol` updated from `2` (dim) to **`1;35`** (magenta) for consistent group highlighting.
+- **`io_compare.html`** — UTF-8 **BOM** stripped on load; **empty chart data** avoids `Infinity`/`NaN` scale; **scatter** X-axis avoids divide-by-zero; **`findSweet`** guards empty rows; resize debounce **400ms**.
 
 ## Earlier
 
